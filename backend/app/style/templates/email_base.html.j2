@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family: {{ font_family }}, sans-serif; font-size: {{ font_size }}pt;
+             color: {{ color }}; line-height: {{ line_height }};">
+  <div style="padding-left: {{ indent }}px;">
+    {{ body | safe }}
+  </div>
+  {% if signature %}
+  <div style="margin-top: 24px; border-top: 1px solid #ddd; padding-top: 12px;">
+    {{ signature | safe }}
+  </div>
+  {% endif %}
+</body>
+</html>

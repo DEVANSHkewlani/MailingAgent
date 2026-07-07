@@ -1,0 +1,147 @@
+import base64
+import contextvars
+from email.mime.text import MIMEText
+from typing import List, Dict, Any, Optional
+from googleapiclient.discovery import build
+from app.providers.base import MailProvider, Message, Thread, Draft, SendResult
+
+# ContextVar to hold the active request-specific GmailProvider client
+active_mail_provider = contextvars.ContextVar("active_mail_provider")
+
+class MailProviderProxy:
+    """Proxy object delegating all attribute lookups to active_mail_provider ContextVar."""
+    def __getattr__(self, name):
+        try:
+            provider = active_mail_provider.get()
+        except LookupError:
+            raise RuntimeError("Mail provider context is not set. Are you calling this inside a graph execution context?")
+        return getattr(provider, name)
+
+# This matches the static import pattern: from app.providers.gmail import gmail_client
+gmail_client = MailProviderProxy()
+
+
+class GmailProvider(MailProvider):
+    def __init__(self, credentials):
+        self.service = build("gmail", "v1", credentials=credentials)
+
+    def list_messages(self, query: str, max_results: int = 20) -> List[Message]:
+        result = self.service.users().messages().list(
+            userId="me", q=query, maxResults=max_results
+        ).execute()
+        return [Message(id=m["id"], thread_id=m["threadId"]) for m in result.get("messages", [])]
+
+    def get_thread(self, thread_id: str) -> Thread:
+        raw = self.service.users().threads().get(
+            userId="me", id=thread_id, format="full"
+        ).execute()
+        # Parse thread messages into dict representation for state context
+        parsed_messages = []
+        for m in raw.get("messages", []):
+            headers = m.get("payload", {}).get("headers", [])
+            sender = next((h["value"] for h in headers if h["name"] == "From"), "unknown")
+            subject = next((h["value"] for h in headers if h["name"] == "Subject"), "no subject")
+            parsed_messages.append({
+                "id": m["id"],
+                "thread_id": thread_id,
+                "sender": sender,
+                "subject": subject,
+                "snippet": m.get("snippet", ""),
+                "labels": m.get("labelIds", []),
+                "received_at": m.get("internalDate") # timestamp milliseconds
+            })
+        return Thread(id=thread_id, messages=parsed_messages)
+
+    def create_draft(self, thread_id: str, html_body: str, subject: Optional[str]) -> Draft:
+        mime = MIMEText(html_body, "html")
+        if subject:
+            mime["subject"] = subject
+        
+        # When creating a draft in a thread, we should reference the thread ID
+        # and set appropriate headers (e.g. In-Reply-To and References) in a production app.
+        raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
+        result = self.service.users().drafts().create(
+            userId="me", body={"message": {"raw": raw, "threadId": thread_id}}
+        ).execute()
+        return Draft(id=result["id"], thread_id=thread_id)
+
+    def update_draft(self, draft_id: str, html_body: str, subject: Optional[str] = None) -> Draft:
+        mime = MIMEText(html_body, "html")
+        if subject:
+            mime["subject"] = subject
+            
+        raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
+        result = self.service.users().drafts().update(
+            userId="me", id=draft_id, body={"message": {"raw": raw}}
+        ).execute()
+        # Get thread_id of updated draft
+        thread_id = result.get("message", {}).get("threadId", "")
+        return Draft(id=result["id"], thread_id=thread_id)
+
+    def send_draft(self, draft_id: str) -> SendResult:
+        result = self.service.users().drafts().send(
+            userId="me", body={"id": draft_id}
+        ).execute()
+        return SendResult(message_id=result["id"], status="sent")
+
+    def apply_label(self, message_id: str, label: str) -> None:
+        label_id = self._resolve_label_id(label)
+        self.service.users().messages().modify(
+            userId="me", id=message_id, body={"addLabelIds": [label_id]}
+        ).execute()
+
+    def get_attachment(self, message_id: str, attachment_id: str) -> Dict[str, Any]:
+        return self.service.users().messages().attachments().get(
+            userId="me", messageId=message_id, id=attachment_id
+        ).execute()
+
+    def check_if_draft_was_sent(self, draft_id: str) -> bool:
+        try:
+            self.service.users().drafts().get(userId="me", id=draft_id).execute()
+            return False
+        except Exception:
+            return True
+
+    def search(self, query: str, max_results: int = 20) -> List[Dict[str, Any]]:
+        """Extended method utilized by list_emails tool. Pulls message metadata."""
+        messages = self.list_messages(query, max_results)
+        results = []
+        for m in messages:
+            try:
+                msg_detail = self.service.users().messages().get(
+                    userId="me", id=m.id, format="metadata",
+                    metadataHeaders=["From", "Subject", "Date"]
+                ).execute()
+                headers = msg_detail.get("payload", {}).get("headers", [])
+                sender = next((h["value"] for h in headers if h["name"].lower() == "from"), "unknown")
+                subject = next((h["value"] for h in headers if h["name"].lower() == "subject"), "no subject")
+                internal_date_ms = msg_detail.get("internalDate")
+                import datetime
+                received_at = None
+                if internal_date_ms:
+                    received_at = datetime.datetime.fromtimestamp(int(internal_date_ms) / 1000.0, datetime.timezone.utc)
+                else:
+                    received_at = datetime.datetime.now(datetime.timezone.utc)
+
+                results.append({
+                    "id": m.id,
+                    "thread_id": m.thread_id,
+                    "sender": sender,
+                    "subject": subject,
+                    "snippet": msg_detail.get("snippet", ""),
+                    "labels": msg_detail.get("labelIds", []),
+                    "received_at": received_at
+                })
+            except Exception as e:
+                print(f"Error fetching message details in search for {m.id}: {e}")
+        return results
+
+    def _resolve_label_id(self, label_name: str) -> str:
+        labels = self.service.users().labels().list(userId="me").execute()["labels"]
+        for l in labels:
+            if l["name"] == label_name:
+                return l["id"]
+        created = self.service.users().labels().create(
+            userId="me", body={"name": label_name}
+        ).execute()
+        return created["id"]

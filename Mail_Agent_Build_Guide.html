@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mail Agent — Complete Build Guide</title>
+<style>
+:root{
+  --bg:#0b0d10;
+  --panel:#111418;
+  --panel-2:#15191e;
+  --border:#23282f;
+  --text:#e6e9ed;
+  --text-dim:#9aa3ad;
+  --text-faint:#6b7280;
+  --accent:#5b9dff;
+  --accent-dim:#2a4a7a;
+  --code-bg:#0d1013;
+  --green:#3ecf8e;
+  --green-bg:#0f2419;
+  --amber:#e8b339;
+  --amber-bg:#241c0a;
+  --red:#e8636b;
+  --red-bg:#240f10;
+  --mono: "SF Mono", "JetBrains Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--text);
+  line-height:1.6;
+  font-size:15.5px;
+}
+::selection{ background:var(--accent-dim); color:#fff; }
+
+/* Layout */
+.shell{ display:flex; min-height:100vh; }
+
+.sidebar{
+  width:280px;
+  flex-shrink:0;
+  background:var(--panel);
+  border-right:1px solid var(--border);
+  position:sticky;
+  top:0;
+  height:100vh;
+  overflow-y:auto;
+  padding:24px 0 60px;
+}
+.sidebar::-webkit-scrollbar{ width:8px; }
+.sidebar::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+
+.brand{
+  padding:0 24px 20px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:16px;
+}
+.brand .mark{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:32px; height:32px;
+  background:linear-gradient(135deg, var(--accent), #8b5bff);
+  border-radius:8px;
+  font-weight:700;
+  font-size:15px;
+  color:#fff;
+  margin-bottom:10px;
+}
+.brand h1{
+  font-size:16px;
+  margin:0 0 4px;
+  font-weight:600;
+  letter-spacing:-0.01em;
+}
+.brand p{
+  font-size:12.5px;
+  color:var(--text-faint);
+  margin:0;
+}
+
+.nav-group{ padding:4px 12px; margin-bottom:6px; }
+.nav-group-label{
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:0.06em;
+  color:var(--text-faint);
+  padding:14px 12px 6px;
+  font-weight:600;
+}
+.nav-link{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 12px;
+  border-radius:6px;
+  color:var(--text-dim);
+  text-decoration:none;
+  font-size:13.5px;
+  transition:background .12s, color .12s;
+}
+.nav-link:hover{ background:var(--panel-2); color:var(--text); }
+.nav-link.active{ background:var(--accent-dim); color:#cfe1ff; }
+.nav-dot{
+  width:6px; height:6px; border-radius:50%; flex-shrink:0;
+  background:var(--text-faint);
+}
+.nav-dot.done{ background:var(--green); }
+.nav-dot.gap{ background:var(--amber); }
+.nav-dot.todo{ background:var(--text-faint); }
+
+.main{
+  flex:1;
+  min-width:0;
+  max-width:980px;
+  padding:48px 56px 120px;
+}
+@media (max-width: 900px){
+  .sidebar{ display:none; }
+  .main{ padding:28px 20px 80px; }
+}
+
+/* Top status bar */
+.status-banner{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:20px 24px;
+  margin-bottom:40px;
+  display:flex;
+  gap:28px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.status-stat{ display:flex; flex-direction:column; gap:2px; }
+.status-stat .num{ font-size:26px; font-weight:700; font-family:var(--mono); }
+.status-stat .label{ font-size:12px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em;}
+.status-stat.done .num{ color:var(--green); }
+.status-stat.gap .num{ color:var(--amber); }
+.status-stat.todo .num{ color:var(--text-dim); }
+
+/* Headings */
+h1.page-title{
+  font-size:32px;
+  font-weight:700;
+  letter-spacing:-0.02em;
+  margin:0 0 8px;
+}
+.page-sub{
+  color:var(--text-dim);
+  font-size:16px;
+  margin:0 0 36px;
+  max-width:720px;
+}
+section{ margin-bottom:56px; scroll-margin-top:24px; }
+h2{
+  font-size:23px;
+  font-weight:700;
+  letter-spacing:-0.01em;
+  margin:0 0 6px;
+  padding-top:8px;
+  border-top:1px solid var(--border);
+  padding-top:32px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+section:first-of-type h2{ border-top:none; padding-top:0; }
+h3{
+  font-size:17px;
+  font-weight:600;
+  margin:28px 0 10px;
+  color:var(--text);
+}
+h4{
+  font-size:14.5px;
+  font-weight:600;
+  margin:20px 0 8px;
+  color:var(--text-dim);
+  text-transform:uppercase;
+  letter-spacing:0.03em;
+}
+p{ margin:0 0 14px; color:var(--text); }
+.lead{ color:var(--text-dim); }
+a{ color:var(--accent); }
+ul, ol{ margin:0 0 16px; padding-left:22px; }
+li{ margin-bottom:7px; }
+strong{ color:#fff; font-weight:600; }
+code{
+  font-family:var(--mono);
+  background:var(--code-bg);
+  border:1px solid var(--border);
+  padding:1.5px 5px;
+  border-radius:4px;
+  font-size:0.87em;
+  color:#ffd479;
+}
+
+/* Status badges */
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  padding:3px 9px;
+  border-radius:20px;
+  flex-shrink:0;
+}
+.badge.done{ background:var(--green-bg); color:var(--green); border:1px solid #1d4f3a; }
+.badge.gap{ background:var(--amber-bg); color:var(--amber); border:1px solid #4a3a10; }
+.badge.todo{ background:var(--panel-2); color:var(--text-dim); border:1px solid var(--border); }
+.badge.critical{ background:var(--red-bg); color:var(--red); border:1px solid #4a1d20; }
+
+/* Cards */
+.card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:18px 20px;
+  margin:16px 0;
+}
+.card-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  margin-bottom:8px;
+}
+.card-row h4{ margin:0; color:var(--text); text-transform:none; letter-spacing:0; font-size:15px; }
+
+.gap-card{
+  background:var(--amber-bg);
+  border:1px solid #4a3a10;
+  border-radius:10px;
+  padding:18px 20px;
+  margin:16px 0;
+}
+.gap-card h4{
+  color:var(--amber); margin:0 0 8px; text-transform:none; font-size:14.5px;
+  display:flex; align-items:center; gap:8px;
+}
+.gap-card p:last-child{ margin-bottom:0; }
+
+.todo-card{
+  background:var(--panel-2);
+  border:1px solid var(--border);
+  border-left:3px solid var(--text-faint);
+  border-radius:6px;
+  padding:14px 18px;
+  margin:12px 0;
+}
+.todo-card.p0{ border-left-color: var(--red); }
+.todo-card.p1{ border-left-color: var(--amber); }
+.todo-card.p2{ border-left-color: var(--accent); }
+.todo-card .meta{ font-size:11.5px; color:var(--text-faint); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.03em;}
+.todo-card p{ margin:0; }
+
+/* Tables */
+.table-wrap{ overflow-x:auto; margin:16px 0 24px; border:1px solid var(--border); border-radius:10px; }
+table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+th{
+  text-align:left;
+  background:var(--panel-2);
+  color:var(--text-dim);
+  font-weight:600;
+  padding:10px 14px;
+  font-size:12px;
+  text-transform:uppercase;
+  letter-spacing:0.03em;
+  border-bottom:1px solid var(--border);
+}
+td{
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  vertical-align:top;
+  color:var(--text);
+}
+tr:last-child td{ border-bottom:none; }
+tbody tr:hover{ background:var(--panel-2); }
+
+/* Code blocks */
+.code-block{
+  background:var(--code-bg);
+  border:1px solid var(--border);
+  border-radius:10px;
+  margin:16px 0 24px;
+  overflow:hidden;
+}
+.code-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:9px 16px;
+  background:var(--panel-2);
+  border-bottom:1px solid var(--border);
+  font-size:12px;
+  color:var(--text-faint);
+  font-family:var(--mono);
+}
+pre{
+  margin:0;
+  padding:16px 18px;
+  overflow-x:auto;
+  font-family:var(--mono);
+  font-size:13px;
+  line-height:1.55;
+  color:#d4d8dd;
+}
+pre .c1{ color:#6a9955; }      /* comment */
+pre .kw{ color:#c586c0; }      /* keyword */
+pre .st{ color:#ce9178; }      /* string */
+pre .fn{ color:#dcdcaa; }      /* function */
+pre .ty{ color:#4ec9b0; }      /* type */
+pre .nb{ color:#b5cea8; }      /* number */
+
+/* Diagram box */
+.diagram{
+  background:var(--code-bg);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:20px;
+  overflow-x:auto;
+  margin:16px 0 24px;
+}
+.diagram pre{ padding:0; font-size:12.5px; color:#9aa3ad; }
+
+/* Note / callout */
+.callout{
+  border-radius:10px;
+  padding:14px 18px;
+  margin:16px 0 24px;
+  border-left:3px solid;
+  font-size:14.5px;
+}
+.callout.info{ background:#0d1a26; border-color:var(--accent); }
+.callout.warn{ background:var(--amber-bg); border-color:var(--amber); }
+.callout strong{ color:inherit; }
+
+/* Checklist */
+.checklist{ list-style:none; padding:0; margin:16px 0; }
+.checklist li{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:8px 0;
+  border-bottom:1px solid var(--border);
+}
+.checklist li:last-child{ border-bottom:none; }
+.check{
+  width:18px; height:18px;
+  border-radius:5px;
+  border:1.5px solid var(--text-faint);
+  flex-shrink:0;
+  margin-top:1px;
+  display:flex; align-items:center; justify-content:center;
+}
+.checklist li.done .check{ background:var(--green); border-color:var(--green); }
+.checklist li.done .check::after{ content:"✓"; color:#072014; font-size:12px; font-weight:700; }
+.checklist li.done span{ color:var(--text-dim); }
+
+footer.doc-footer{
+  margin-top:80px;
+  padding-top:24px;
+  border-top:1px solid var(--border);
+  color:var(--text-faint);
+  font-size:13px;
+}
+
+/* Progress ring small */
+.phase-pill{
+  display:inline-block;
+  font-size:11px;
+  font-weight:700;
+  padding:2px 10px;
+  border-radius:20px;
+  background:var(--panel-2);
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  margin-left:8px;
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="brand">
+    <div class="mark">M</div>
+    <h1>Mail Agent</h1>
+    <p>Complete build guide · v1.0</p>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Start Here</div>
+    <a class="nav-link" href="#status"><span class="nav-dot gap"></span>Project Status</a>
+    <a class="nav-link" href="#summary"><span class="nav-dot todo"></span>Executive Summary</a>
+    <a class="nav-link" href="#scope"><span class="nav-dot todo"></span>Scope &amp; Principles</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Architecture</div>
+    <a class="nav-link" href="#architecture"><span class="nav-dot todo"></span>System Architecture</a>
+    <a class="nav-link" href="#agents"><span class="nav-dot todo"></span>Multi-Agent Design</a>
+    <a class="nav-link" href="#roster"><span class="nav-dot todo"></span>Agent Roster</a>
+    <a class="nav-link" href="#tools"><span class="nav-dot todo"></span>Tool Layer</a>
+    <a class="nav-link" href="#permissions"><span class="nav-dot todo"></span>Permission System</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Data &amp; Backend</div>
+    <a class="nav-link" href="#database"><span class="nav-dot todo"></span>Database Schema</a>
+    <a class="nav-link" href="#backend"><span class="nav-dot todo"></span>Backend Architecture</a>
+    <a class="nav-link" href="#memory"><span class="nav-dot gap"></span>Conversation Memory</a>
+    <a class="nav-link" href="#categorization"><span class="nav-dot gap"></span>Categorization Design</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Frontend</div>
+    <a class="nav-link" href="#dashboard"><span class="nav-dot todo"></span>Dashboard Spec</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Integrations</div>
+    <a class="nav-link" href="#gmail"><span class="nav-dot todo"></span>Gmail + Calendar (Phase 1)</a>
+    <a class="nav-link" href="#outlook"><span class="nav-dot todo"></span>Outlook (Phase 2)</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Quality &amp; Style</div>
+    <a class="nav-link" href="#style-engine"><span class="nav-dot todo"></span>Formatting Engine</a>
+    <a class="nav-link" href="#cost"><span class="nav-dot gap"></span>Cost &amp; Rate Limits</a>
+    <a class="nav-link" href="#errors"><span class="nav-dot gap"></span>Error Handling</a>
+    <a class="nav-link" href="#observability"><span class="nav-dot todo"></span>Observability &amp; Evals</a>
+    <a class="nav-link" href="#security"><span class="nav-dot todo"></span>Security &amp; Compliance</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Extensions</div>
+    <a class="nav-link" href="#campaigns"><span class="nav-dot todo"></span>Bulk Campaigns</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-label">Execution</div>
+    <a class="nav-link" href="#roadmap"><span class="nav-dot gap"></span>Build Roadmap</a>
+    <a class="nav-link" href="#todo"><span class="nav-dot gap"></span>Complete To-Do List</a>
+    <a class="nav-link" href="#stack"><span class="nav-dot todo"></span>Tech Stack Summary</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- PLACEHOLDER: content sections injected below -->
+<section id="status">
+<div class="status-banner">
+  <div class="status-stat todo">
+    <div class="num">0%</div>
+    <div class="label">Built so far</div>
+  </div>
+  <div class="status-stat gap">
+    <div class="num">6</div>
+    <div class="label">Design gaps found</div>
+  </div>
+  <div class="status-stat todo">
+    <div class="num">7</div>
+    <div class="label">Milestones to ship</div>
+  </div>
+  <div class="status-stat todo">
+    <div class="num">~9</div>
+    <div class="label">Weeks to Phase 2 start</div>
+  </div>
+</div>
+
+<h1 class="page-title">Mail Agent — Complete Build Guide</h1>
+<p class="page-sub lead">This is the single source of truth for building Mail Agent end to end: a multi-agent system that reads, categorizes, summarizes, drafts, and sends email, and manages calendar events and reminders, all from natural-language instructions. Nothing has been built yet — this document covers the full original architecture, every gap found in it, and exactly what to do next.</p>
+
+<div class="callout info">
+<strong>How to read this guide.</strong> Each section carries a status badge. <span class="badge done">Resolved</span> means the design is solid and ready to implement as-is. <span class="badge gap">Gap filled</span> means the original plan was missing this and it's been designed here for the first time. <span class="badge critical">Needs decision</span> flags a fork where you should make a call before building. The companion file <code>IMPLEMENTATION.md</code> has the actual runnable code for everything marked buildable.
+</div>
+</section>
+
+<section id="summary">
+<h2>1. Executive Summary</h2>
+<p>Mail Agent is a multi-agent AI system that lets a user manage their entire email and calendar workflow through natural-language instructions. Instead of clicking through inbox filters, the user types what they want — <em>"summarize today's unread emails from clients and draft replies in a formal tone with my signature"</em> — and a team of specialized AI agents plans the work, executes it through governed tools, and surfaces results in a control dashboard.</p>
+<p>The system is built as a supervisor/worker multi-agent graph using LangGraph, with each worker agent owning one capability domain: reading, categorizing, drafting, sending, scheduling, reminders. Agents act through a strict tool layer with a permission system in front of every side-effecting action — send email, create event, modify calendar — so nothing irreversible happens without the right authorization level, which defaults to user confirmation.</p>
+<p>Phase 1 ships against Gmail and Google Calendar. Phase 2 extends the same agent and tool abstractions to Microsoft Outlook / Graph API, reusing the entire orchestration layer — only the integration adapter changes.</p>
+
+<h3>1.1 What success looks like</h3>
+<ul>
+<li>A user can issue a single free-text instruction and have it correctly decomposed into the right sequence of agent actions.</li>
+<li>Every categorization, summary, and draft is explainable — the user can see why an agent made a decision.</li>
+<li>No email is sent and no calendar event is created without passing through the permission layer.</li>
+<li>Formatting instructions (signature, tone, font, color, spacing) are honored precisely and consistently.</li>
+<li>The architecture is provider-agnostic enough that adding Outlook in Phase 2 doesn't require rebuilding the agent layer.</li>
+</ul>
+</section>
+
+<section id="scope">
+<h2>2. Product Scope &amp; Design Principles <span class="badge done">Resolved</span></h2>
+
+<h3>2.1 Core capabilities — Phase 1</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Capability</th><th>Description</th></tr>
+<tr><td>Read &amp; Search</td><td>Fetch emails by query, label, sender, date range, thread</td></tr>
+<tr><td>Categorize</td><td>Auto-label emails (Urgent, FYI, Meeting Request, Newsletter, Action Needed)</td></tr>
+<tr><td>Summarize</td><td>Single email or full thread summarization, on demand or scheduled</td></tr>
+<tr><td>Draft Replies</td><td>Context-aware draft generation honoring tone, formatting, and signature instructions</td></tr>
+<tr><td>Send</td><td>Send a drafted or user-approved email, with permission gating</td></tr>
+<tr><td>Reminders</td><td>Create follow-up reminders/tasks tied to specific emails or threads</td></tr>
+<tr><td>Meetings</td><td>Detect meeting intent in emails and create Google Calendar events, with conflict checking</td></tr>
+<tr><td>Dashboard Control</td><td>Web UI to view agent activity, approve/reject actions, configure permissions and rules</td></tr>
+</table>
+</div>
+
+<h3>2.2 Design principles</h3>
+<ol>
+<li><strong>Agent autonomy is opt-in, not default.</strong> Every agent starts conservative (draft + confirm); the user grants more autonomy per action type over time.</li>
+<li><strong>Every action is auditable.</strong> Every tool call, decision, and state transition is logged with the reasoning that produced it.</li>
+<li><strong>Tools are the only way agents touch the world.</strong> No agent calls the Gmail API directly from an LLM completion — it always goes through a typed, validated tool function.</li>
+<li><strong>Formatting is a parameter, not a vibe.</strong> Style instructions (font, color, indentation, signature) are parsed into a structured style object, never left to free-text generation alone.</li>
+<li><strong>Provider-agnostic core.</strong> The agent graph, permission system, and database schema are designed around abstract concepts — Message, Thread, Event, Contact — that both Gmail and Outlook adapters implement.</li>
+</ol>
+</section>
+
+<section id="architecture">
+<h2>3. System Architecture — High Level <span class="badge done">Resolved</span></h2>
+<p>The system has five layers. Each is independently testable and replaceable.</p>
+
+<div class="table-wrap">
+<table>
+<tr><th>Layer</th><th>Responsibility</th><th>Key Tech</th></tr>
+<tr><td>Presentation</td><td>Chat interface + dashboard for agent control, approvals, configuration</td><td>React, WebSockets</td></tr>
+<tr><td>Orchestration</td><td>Multi-agent reasoning, planning, task delegation, state machine</td><td>LangGraph, LangChain, Claude API</td></tr>
+<tr><td>Tool / Integration</td><td>Typed wrappers around Gmail, Calendar, Tasks, and later Outlook APIs</td><td>Python, Google API Client, MS Graph SDK</td></tr>
+<tr><td>Permission &amp; Policy</td><td>Authorization checks, approval queue, rule engine</td><td>Custom policy engine + Postgres</td></tr>
+<tr><td>Persistence</td><td>Conversation state, email metadata cache, audit log, user config</td><td>PostgreSQL, Redis</td></tr>
+</table>
+</div>
+
+<h3>3.1 Request flow — happy path</h3>
+<ol>
+<li>User types an instruction in the dashboard chat panel.</li>
+<li>Request hits the FastAPI backend, which loads conversation + user context and invokes the LangGraph supervisor.</li>
+<li>Supervisor agent decomposes the instruction into subtasks and routes each to the relevant worker agent.</li>
+<li>Worker agents call tools. Every side-effecting tool call is intercepted by the Permission Layer first.</li>
+<li>If the action requires approval, it's written to an approval queue and surfaced in the dashboard; execution pauses (LangGraph <code>interrupt</code>) until the user approves or rejects.</li>
+<li>Once approved (or pre-authorized), the tool executes against the Gmail/Calendar API.</li>
+<li>Results flow back through the supervisor, get logged to the audit trail, and stream to the dashboard UI.</li>
+</ol>
+
+<div class="gap-card">
+<h4>⚠ Gap: no mention of where conversation history lives in this flow</h4>
+<p>The original flow assumes one instruction in, one response out. Real usage is multi-turn — "draft a reply to that one" referring to something three messages back. See <a href="#memory">§ Conversation Memory</a> for the fix: a <code>conversations</code> + <code>messages</code> table pair and how the supervisor loads recent turns into context before planning.</p>
+</div>
+</section>
+<section id="agents">
+<h2>4. Multi-Agent Design with LangGraph <span class="badge gap">Gap fixed</span></h2>
+<p>LangGraph models the system as a graph of nodes (agents/tools) and edges (control flow), with a shared state object passed between nodes. This gives parallel execution, conditional routing, and human-in-the-loop interrupts.</p>
+
+<h3>4.1 Why multi-agent instead of one big agent</h3>
+<ul>
+<li><strong>Separation of concerns</strong> — a categorization agent and a drafting agent need very different prompts, context, and evaluation criteria. Mixing them in one mega-prompt degrades quality on both.</li>
+<li><strong>Parallelism</strong> — categorizing 50 unread emails and summarizing 5 threads can run concurrently as independent graph branches rather than serially.</li>
+<li><strong>Safety isolation</strong> — only agents that need send/create permissions are wired to those tools. The summarizer simply has no tool access to <code>send_email</code> — a structural guarantee, not a prompt instruction.</li>
+<li><strong>Easier evals</strong> — you can test "does the Categorizer assign correct labels" independently of "does the Drafter match tone."</li>
+</ul>
+
+<h3>4.2 Supervisor pattern</h3>
+<p>A Supervisor agent sits at the root of the graph. It doesn't execute domain work itself — it interprets the user's request, breaks it into a task list, and routes each task to the correct worker node.</p>
+
+<div class="diagram"><pre>User instruction
+      │
+      ▼
+ ┌─────────────┐
+ │ Supervisor  │  (plans, routes, merges results)
+ └─────┬───────┘
+       │  parallel dispatch
+   ┌───┼─────────┬───────────┬───────────┬────────────┐
+   ▼   ▼         ▼           ▼           ▼            ▼
+Reader  Categorizer  Summarizer  Drafter  Scheduler  Reminder
+Agent   Agent        Agent       Agent    Agent      Agent
+   │       │            │           │         │          │
+   └───────┴─────fan-in─┴─────join──┴─────────┴──────────┘
+                               ▼
+                      Permission Gate
+                       (per pending action)
+                               ▼
+                 ┌─────────────┴─────────────┐
+                 ▼                           ▼
+         AUTO → Executor              CONFIRM → interrupt()
+                 │                     (waits for dashboard
+                 ▼                      approve/reject, then
+            Gmail / Calendar              resumes from
+                Tools                      checkpoint)
+                 │                           │
+                 └─────────────┬─────────────┘
+                                ▼
+                          Audit Log + DB
+                                ▼
+                       Supervisor (aggregate)
+                                ▼
+                        Response to user</pre></div>
+
+<div class="gap-card">
+<h4>⚠ Gap fixed: the original fan-in into one shared <code>permission_gate</code> node will corrupt state under real concurrency</h4>
+<p>The original design routes multiple parallel workers into a single <code>permission_gate</code> node without specifying how concurrent writes to the same state object are merged. In LangGraph, when two or more nodes run in parallel and write to the same state key, you <strong>must</strong> declare that key with a <em>reducer</em> via <code>Annotated</code> — otherwise the last writer silently overwrites the others' results, which is a real bug, not a theoretical one, once you have more than 2 parallel branches.</p>
+<p>The fix: every list-shaped field in state that multiple agents append to (<code>pending_approvals</code>, <code>completed_tasks</code>, <code>email_context</code>, <code>errors</code>) must use <code>operator.add</code> as its reducer so LangGraph concatenates rather than overwrites. See the corrected state object below and the full working graph in <code>IMPLEMENTATION.md → Section 3</code>.</p>
+</div>
+
+<h3>4.3 LangGraph state object — corrected</h3>
+<div class="code-block">
+<div class="code-head"><span>state.py</span><span>Python</span></div>
+<pre><span class="kw">from</span> typing <span class="kw">import</span> TypedDict, Literal, Annotated
+<span class="kw">from</span> operator <span class="kw">import</span> add
+<span class="kw">from</span> langgraph.graph <span class="kw">import</span> MessagesState
+
+<span class="kw">class</span> <span class="ty">MailAgentState</span>(MessagesState):
+    user_id: <span class="ty">str</span>
+    conversation_id: <span class="ty">str</span>                       <span class="c1"># NEW — see § Conversation Memory</span>
+    instruction: <span class="ty">str</span>
+    plan: <span class="ty">list</span>[<span class="ty">dict</span>]
+    <span class="c1"># Fields written by MULTIPLE parallel agents need a reducer,</span>
+    <span class="c1"># or the last node to finish silently wipes out the others.</span>
+    active_tasks: Annotated[<span class="ty">list</span>[<span class="ty">dict</span>], add]
+    completed_tasks: Annotated[<span class="ty">list</span>[<span class="ty">dict</span>], add]
+    pending_approvals: Annotated[<span class="ty">list</span>[<span class="ty">dict</span>], add]
+    email_context: Annotated[<span class="ty">list</span>[<span class="ty">dict</span>], add]
+    draft_results: Annotated[<span class="ty">list</span>[<span class="ty">dict</span>], add]
+    calendar_results: Annotated[<span class="ty">list</span>[<span class="ty">dict</span>], add]
+    errors: Annotated[<span class="ty">list</span>[<span class="ty">dict</span>], add]
+    style_profile: <span class="ty">dict</span>                          <span class="c1"># single-writer, no reducer needed</span>
+</pre>
+</div>
+
+<p>Full graph wiring (nodes, conditional edges, the corrected fan-out/fan-in, and the Postgres checkpointer setup) is in <code>IMPLEMENTATION.md → Section 3.2</code>, fully runnable.</p>
+
+<div class="callout info"><strong>Note:</strong> LangGraph's <code>interrupt()</code> + checkpointer pattern is what makes "pause for human approval, then resume exactly where it left off" possible without re-running completed work. Use a Postgres-backed checkpointer in production so interrupted runs survive backend restarts.</div>
+</section>
+
+<section id="roster">
+<h2>5. Agent Roster &amp; Responsibilities <span class="badge done">Resolved</span></h2>
+<div class="table-wrap">
+<table>
+<tr><th>Agent</th><th>Role</th><th>Tools</th><th>Output</th></tr>
+<tr><td>Supervisor</td><td>Parses intent, builds task plan, routes work, merges results</td><td>None (orchestration only)</td><td>Task plan + final response</td></tr>
+<tr><td>Reader</td><td>Fetches emails/threads matching query/filter criteria</td><td><code>list_emails</code>, <code>get_thread</code>, <code>get_attachment</code></td><td>Email/thread objects</td></tr>
+<tr><td>Categorizer</td><td>Assigns category labels using rules + LLM judgment</td><td><code>list_labels</code>, <code>apply_label</code></td><td>Label assignments</td></tr>
+<tr><td>Summarizer</td><td>Produces concise summaries of emails or threads</td><td><code>get_thread</code> (read-only)</td><td>Summary text</td></tr>
+<tr><td>Drafter</td><td>Generates reply drafts honoring tone/style/signature</td><td><code>get_thread</code>, <code>get_style_profile</code>, <code>create_draft</code></td><td>Draft object (not sent)</td></tr>
+<tr><td>Sender</td><td>Sends a previously created and approved draft</td><td><code>send_email</code> (gated)</td><td>Send confirmation</td></tr>
+<tr><td>Scheduler</td><td>Detects meeting intent, checks conflicts, creates events</td><td><code>check_availability</code>, <code>create_event</code> (gated)</td><td>Calendar event</td></tr>
+<tr><td>Reminder</td><td>Creates follow-up reminders/tasks linked to emails</td><td><code>create_task</code>, <code>create_reminder</code></td><td>Task object</td></tr>
+</table>
+</div>
+<div class="callout info"><strong>Note:</strong> Sender and Scheduler are the only agents wired to irreversible, externally-visible actions. They're intentionally the most tightly gated agents in the system — see <a href="#permissions">§ Permission System</a>.</div>
+</section>
+
+<section id="tools">
+<h2>6. Tool Layer — Schemas &amp; Contracts <span class="badge done">Resolved</span></h2>
+<p>Tools are the boundary between LLM reasoning and real-world effects. Every tool has a strict input schema (Pydantic), explicit side-effect classification, and a permission tag consumed by the Permission Layer.</p>
+
+<h3>6.1 Full tool catalog</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Tool</th><th>Side Effect</th><th>Gated?</th></tr>
+<tr><td><code>list_emails</code> / <code>search_emails</code></td><td>Read-only</td><td>No</td></tr>
+<tr><td><code>get_thread</code></td><td>Read-only</td><td>No</td></tr>
+<tr><td><code>get_attachment</code></td><td>Read-only</td><td>No</td></tr>
+<tr><td><code>apply_label</code> / <code>categorize</code></td><td>Reversible</td><td>No (configurable)</td></tr>
+<tr><td><code>create_draft</code></td><td>Reversible</td><td>No</td></tr>
+<tr><td><code>update_draft</code></td><td>Reversible</td><td>No</td></tr>
+<tr><td><code>send_email</code></td><td>Irreversible</td><td>Yes — always</td></tr>
+<tr><td><code>check_availability</code></td><td>Read-only</td><td>No</td></tr>
+<tr><td><code>create_event</code></td><td>Irreversible</td><td>Yes — always</td></tr>
+<tr><td><code>update_event</code> / <code>cancel_event</code></td><td>Irreversible</td><td>Yes — always</td></tr>
+<tr><td><code>create_task</code> / <code>create_reminder</code></td><td>Reversible</td><td>Configurable</td></tr>
+<tr><td><code>get_style_profile</code></td><td>Read-only</td><td>No</td></tr>
+</table>
+</div>
+<p>Full Pydantic schemas and tool implementations (<code>list_emails</code>, <code>create_draft</code>, <code>send_email</code>, <code>create_event</code>, etc.) are in <code>IMPLEMENTATION.md → Section 4</code>, copy-pasteable and runnable against the real Gmail API.</p>
+</section>
+<section id="permissions">
+<h2>7. Permission &amp; Approval System <span class="badge done">Resolved — this is the most important section</span></h2>
+<p>This is the most safety-critical subsystem. It determines whether an agent's proposed action executes immediately, waits for human approval, or is blocked outright.</p>
+
+<h3>7.1 Permission model</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Level</th><th>Behavior</th><th>Default For</th></tr>
+<tr><td><strong>AUTO</strong></td><td>Executes immediately, no human step. Logged for audit.</td><td><code>list_emails</code>, <code>get_thread</code>, <code>categorize</code>, <code>summarize</code></td></tr>
+<tr><td><strong>CONFIRM</strong></td><td>Action is prepared (e.g. draft created) and queued in dashboard; executes only after explicit user approval.</td><td><code>send_email</code>, <code>create_event</code>, <code>update_event</code></td></tr>
+<tr><td><strong>BLOCKED</strong></td><td>Agent may not propose this action at all under current rules.</td><td>Bulk delete, forwarding to unknown external domains (configurable)</td></tr>
+</table>
+</div>
+
+<h3>7.2 Approval queue &amp; confirmation tokens</h3>
+<p>When a worker agent produces an action requiring CONFIRM, the Permission Layer writes a row to <code>approval_queue</code>, generates a single-use <code>confirmation_token</code> scoped to (user, action, resource, expiry), and pushes a real-time event to the dashboard via WebSocket. Graph execution interrupts at that node using LangGraph's <code>interrupt()</code> primitive.</p>
+<p>Full implementation — including the corrected version that supports the multi-agent fan-out from Section 4 — is in <code>IMPLEMENTATION.md → Section 5</code>.</p>
+
+<h3>7.3 Dashboard approval UX</h3>
+<ul>
+<li>Pending approvals appear in a persistent "Needs your review" panel — never auto-dismissed.</li>
+<li>Each approval shows the exact email/event content, the recipient(s), the agent's reasoning, and one-click Approve / Edit / Reject.</li>
+<li>"Edit" lets the user modify the draft body or event details before approving — edits are saved back before the token is issued.</li>
+<li>Users can set per-contact or per-label auto-approve rules, but <code>send_email</code> and <code>create_event</code> remain CONFIRM by default and require explicit opt-in to relax.</li>
+</ul>
+
+<h3>7.4 Audit logging</h3>
+<p>Every tool call — AUTO or CONFIRM — writes an immutable row to <code>audit_log</code> with timestamp, user_id, agent name, tool name, input parameters, output, the approval_id if applicable, and the LLM's stated reasoning. Non-negotiable for trust and debugging.</p>
+</section>
+
+<section id="database">
+<h2>8. Database Schema — PostgreSQL <span class="badge gap">Gap fixed: 3 tables added</span></h2>
+<p>The original schema is solid but incomplete for a working chat product — it has no conversation/message history and no place to track categorization rules. Both are added below. Full <code>CREATE TABLE</code> statements for every table (original + new) are in <code>IMPLEMENTATION.md → Section 2</code>, ready to run as a migration.</p>
+
+<h3>8.1 Original tables — unchanged, confirmed solid</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Table</th><th>Purpose</th></tr>
+<tr><td><code>users</code></td><td>Account identity</td></tr>
+<tr><td><code>oauth_credentials</code></td><td>Encrypted Gmail/Outlook tokens, scopes, expiry</td></tr>
+<tr><td><code>style_profiles</code></td><td>Signature, font, color, tone presets</td></tr>
+<tr><td><code>email_cache</code></td><td>Metadata-only cache (sender, subject, snippet, category) — not full bodies</td></tr>
+<tr><td><code>drafts</code></td><td>Agent-created drafts, pending/approved/sent/rejected</td></tr>
+<tr><td><code>approval_queue</code></td><td>Pending CONFIRM actions, tokens, expiry</td></tr>
+<tr><td><code>permission_rules</code></td><td>Per-user AUTO/CONFIRM/BLOCKED overrides</td></tr>
+<tr><td><code>reminders</code></td><td>Follow-up tasks linked to threads</td></tr>
+<tr><td><code>calendar_events</code></td><td>Mirror of provider-side events the system created</td></tr>
+<tr><td><code>audit_log</code></td><td>Immutable record of every tool call</td></tr>
+</table>
+</div>
+
+<h3>8.2 New tables — added to close the memory and categorization gaps</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Table</th><th>Purpose</th><th>Why it was missing</th></tr>
+<tr><td><code>conversations</code></td><td>One row per chat session/thread in the dashboard</td><td>Original design had no concept of a conversation — only a single in/out instruction. See § Conversation Memory.</td></tr>
+<tr><td><code>messages</code></td><td>Every user + agent turn, ordered, linked to a conversation</td><td>Needed so the Supervisor can load recent turns into context before planning.</td></tr>
+<tr><td><code>category_rules</code></td><td>User-defined or default rules mapping sender/keyword/domain patterns to categories</td><td>Original design said "rules + LLM judgment" with no table to store the rules in. See § Categorization Design.</td></tr>
+</table>
+</div>
+
+<h3>8.3 Indexing notes</h3>
+<ul>
+<li>Index <code>audit_log(user_id, created_at DESC)</code> for dashboard activity feeds.</li>
+<li>Index <code>approval_queue(user_id, status)</code> for the live pending-approvals panel.</li>
+<li>Index <code>email_cache(user_id, thread_id)</code> and <code>(user_id, category)</code> for fast categorized views.</li>
+<li>Index <code>messages(conversation_id, created_at)</code> for fast conversation replay.</li>
+</ul>
+</section>
+
+<section id="memory">
+<h2>8a. Conversation Memory <span class="badge gap">Gap fixed — was entirely missing</span></h2>
+<div class="gap-card">
+<h4>⚠ What was missing</h4>
+<p>The original spec's <code>MailAgentState</code> has a single <code>instruction: str</code> field — it models one request in, one response out, with no way to refer back to anything said earlier in the conversation. A real chat UI needs "draft a reply to <em>that one</em>" to resolve correctly, which requires actual conversation history feeding the Supervisor's planning step.</p>
+</div>
+
+<h3>How it's resolved</h3>
+<ol>
+<li>Every dashboard chat session maps to one row in <code>conversations</code>.</li>
+<li>Every user message and every agent-generated response is written to <code>messages</code>, in order, tagged with role (<code>user</code> / <code>assistant</code> / <code>tool</code>).</li>
+<li>Before the Supervisor plans a new instruction, the backend loads the last N turns (default: last 20, or last 4000 tokens, whichever is smaller) from <code>messages</code> and injects them into the LangGraph state's built-in <code>messages</code> field (inherited from <code>MessagesState</code>), so the Supervisor's prompt has real context.</li>
+<li>References like "that email" or "the one from Sarah" are resolved by the Supervisor against <code>email_context</code> entries already present in the recent conversation state — not by re-fetching from Gmail blindly.</li>
+</ol>
+<p>Full loader function and the updated Supervisor prompt that uses it: <code>IMPLEMENTATION.md → Section 6</code>.</p>
+</section>
+
+<section id="categorization">
+<h2>8b. Categorization Design <span class="badge gap">Gap fixed — was underspecified</span></h2>
+<div class="gap-card">
+<h4>⚠ What was missing</h4>
+<p>The original spec says the Categorizer uses "rules + LLM judgment" but never defines the category taxonomy, where rules live, or what happens when a rule and the LLM disagree. That's enough ambiguity to stall implementation.</p>
+</div>
+
+<h3>Resolved design</h3>
+<h4>Default taxonomy (editable per user)</h4>
+<ul>
+<li><code>urgent</code> — needs response within hours</li>
+<li><code>action_needed</code> — needs response, no hard deadline implied</li>
+<li><code>meeting_request</code> — contains scheduling intent</li>
+<li><code>fyi</code> — informational, no response expected</li>
+<li><code>newsletter</code> — bulk/marketing/subscription mail</li>
+<li><code>personal</code> — non-work correspondence</li>
+</ul>
+<h4>Resolution order</h4>
+<ol>
+<li><strong>Rules first.</strong> Check <code>category_rules</code> for a match (sender domain, exact sender, subject keyword, existing Gmail label). Rules are cheap and deterministic — evaluate before spending an LLM call.</li>
+<li><strong>LLM fallback.</strong> If no rule matches, send the email metadata + snippet (not always the full body, to control cost — see § Cost) to a cheap/fast model call (Haiku-class) for classification into the taxonomy.</li>
+<li><strong>Conflict handling.</strong> A matching rule always wins over LLM judgment for that message — rules represent explicit user intent and should never be silently overridden by the model. If the user wants the LLM to have final say, they delete or disable the rule.</li>
+<li><strong>Confidence threshold.</strong> If the LLM call returns confidence below a threshold (modeled as a forced structured output with a confidence field), the email is tagged <code>uncategorized</code> rather than guessed, and surfaced for one-time user labeling — which becomes a new rule suggestion.</li>
+</ol>
+<p>Schema for <code>category_rules</code> and the full classification function are in <code>IMPLEMENTATION.md → Section 7</code>.</p>
+</section>
+
+<section id="backend">
+<h2>9. Backend Architecture <span class="badge done">Resolved</span></h2>
+<h3>9.1 Service breakdown</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Service</th><th>Responsibility</th><th>Tech</th></tr>
+<tr><td>API Gateway</td><td>Auth, request routing, WebSocket connections for live updates</td><td>FastAPI</td></tr>
+<tr><td>Agent Orchestrator</td><td>Runs the LangGraph graph per request/conversation</td><td>LangGraph + Claude API</td></tr>
+<tr><td>Integration Adapters</td><td>Provider-specific clients (Gmail, Google Calendar; later Outlook/Graph)</td><td>Google API Python Client, MSAL</td></tr>
+<tr><td>Permission Service</td><td>Policy evaluation, token issuance/verification</td><td>Python + Postgres</td></tr>
+<tr><td>Background Worker</td><td>Polling for new emails, scheduled summaries, reminder triggers</td><td>Celery + Redis (or APScheduler for prototype)</td></tr>
+<tr><td>Notification Service</td><td>Pushes approval requests and agent updates to dashboard</td><td>WebSockets / SSE</td></tr>
+</table>
+</div>
+
+<h3>9.2 New email trigger flow</h3>
+<ol>
+<li>Worker polls Gmail history API (or uses Gmail Push Notifications via Pub/Sub) on a per-user schedule.</li>
+<li>New messages are written to <code>email_cache</code>.</li>
+<li>If the user has "auto-categorize new mail" enabled, a lightweight graph run triggers with only the Categorizer agent active.</li>
+<li>If a category matches a user-defined rule (e.g. "meeting requests → notify immediately"), a dashboard notification fires.</li>
+</ol>
+<div class="callout warn"><strong>Note:</strong> Use Gmail Push Notifications (Pub/Sub) instead of polling once past prototype — polling burns API quota and adds latency. For the fast prototype, a 60-second poll loop with the history API is fine.</div>
+
+<h3>9.3 Why FastAPI + LangGraph, not one monolith prompt</h3>
+<ul>
+<li>FastAPI gives async request handling, WebSocket support, and OpenAPI docs for the dashboard to consume.</li>
+<li>LangGraph gives durable execution — if the backend restarts mid-approval-wait, the checkpointer resumes the exact graph state rather than losing the user's in-flight request.</li>
+<li>Decoupling orchestration from transport means you can later expose the same agent graph via CLI, Slack bot, or Outlook plugin without rewriting agent logic.</li>
+</ul>
+</section>
+<section id="dashboard">
+<h2>10. Frontend Dashboard Specification <span class="badge done">Resolved</span></h2>
+<h3>10.1 Core views</h3>
+<div class="table-wrap">
+<table>
+<tr><th>View</th><th>Purpose</th></tr>
+<tr><td>Chat / Command Panel</td><td>Primary interaction surface — type instructions, see agent responses, inline drafts</td></tr>
+<tr><td>Approval Queue</td><td>Live list of actions awaiting confirmation, with Approve/Edit/Reject</td></tr>
+<tr><td>Inbox Overview</td><td>Categorized email list, synced from <code>email_cache</code>, filterable by label/date/sender</td></tr>
+<tr><td>Activity / Audit Feed</td><td>Chronological log of everything agents have done, reasoning shown on expand</td></tr>
+<tr><td>Style Profiles</td><td>Manage signatures, tone presets, fonts/colors per context</td></tr>
+<tr><td>Permission Rules</td><td>Configure AUTO / CONFIRM / BLOCKED per action type and condition</td></tr>
+<tr><td>Calendar View</td><td>Visual calendar showing events the system created or proposed, with conflict highlighting</td></tr>
+<tr><td>Agent Status Panel</td><td>Shows which agents are currently active/running — transparency during parallel execution</td></tr>
+</table>
+</div>
+
+<h3>10.2 Real-time updates</h3>
+<p>The dashboard maintains a WebSocket connection per user session. Agent state changes — task started, task completed, approval needed, error — push immediately rather than relying on polling, so a user watching the dashboard sees the multi-agent system working in near real time.</p>
+
+<h3>10.3 Suggested stack</h3>
+<ul>
+<li>React + TypeScript, Vite for build tooling</li>
+<li>TanStack Query for server state, native WebSocket hook for live events</li>
+<li>Tailwind CSS for styling</li>
+<li>shadcn/ui for forms, approval modals, audit log tables</li>
+</ul>
+<p>A working chat panel + approval queue component (the two highest-priority UI pieces for the prototype) are scaffolded in <code>IMPLEMENTATION.md → Section 9</code>.</p>
+</section>
+
+<section id="gmail">
+<h2>11. Gmail + Google Calendar Integration — Phase 1 <span class="badge done">Resolved</span></h2>
+<h3>11.1 OAuth setup</h3>
+<ol>
+<li>Create a project in Google Cloud Console, enable Gmail API, Google Calendar API, and Google Tasks API.</li>
+<li>Configure the OAuth consent screen (Internal if Google Workspace org, External + verification if public product).</li>
+<li>Create an OAuth 2.0 Client ID (Web application type), set redirect URI to your backend callback.</li>
+<li>Request the minimum necessary scopes — see below.</li>
+</ol>
+
+<h3>11.2 Required scopes</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Scope</th><th>Purpose</th></tr>
+<tr><td><code>gmail.readonly</code></td><td>Reading emails, threads, search</td></tr>
+<tr><td><code>gmail.compose</code></td><td>Creating drafts (does not allow sending)</td></tr>
+<tr><td><code>gmail.send</code></td><td>Sending approved drafts</td></tr>
+<tr><td><code>gmail.labels</code></td><td>Reading and applying categorization labels</td></tr>
+<tr><td><code>calendar.events</code></td><td>Creating/reading/updating calendar events</td></tr>
+<tr><td><code>calendar.readonly</code></td><td>Checking availability/conflicts without write access</td></tr>
+<tr><td><code>tasks</code></td><td>Creating reminders via Google Tasks (or use the custom <code>reminders</code> table instead)</td></tr>
+</table>
+</div>
+<div class="callout info"><strong>Note:</strong> Request <code>gmail.compose</code> and <code>gmail.send</code> as separate, distinct scope grants in your consent screen copy — being explicit that drafting and sending are different permissions builds user trust and mirrors the product's own permission model.</div>
+
+<h3>11.3 Real-time sync — production</h3>
+<p>Use Gmail's <code>watch()</code> API with Google Cloud Pub/Sub to receive push notifications on mailbox changes, rather than polling. Set up a Pub/Sub topic, grant Gmail publish rights to it, subscribe your backend to receive history IDs, then call <code>history.list()</code> for the delta.</p>
+<p>Full OAuth flow code and all Gmail/Calendar API call patterns (reading, drafting, sending, labeling, freebusy check, event creation) are in <code>IMPLEMENTATION.md → Section 8</code>.</p>
+</section>
+
+<section id="outlook">
+<h2>12. Phase 2: Microsoft Outlook / 365 Migration Plan <span class="badge done">Resolved</span></h2>
+<p>Because the architecture treats Gmail as one implementation of an abstract <code>MailProvider</code> interface, Phase 2 is primarily an adapter-writing exercise, not a redesign. Worker agents and tools call the abstract interface, never <code>GmailProvider</code> directly — the active provider resolves per-user based on which account they connected.</p>
+
+<h3>12.1 Outlook-specific notes</h3>
+<ul>
+<li><strong>Auth:</strong> Microsoft Entra ID (Azure AD) app registration, OAuth 2.0 via MSAL, using Microsoft Graph API.</li>
+<li><strong>Scopes:</strong> <code>Mail.Read</code>, <code>Mail.ReadWrite</code> (drafts), <code>Mail.Send</code>, <code>Calendars.ReadWrite</code>.</li>
+<li><strong>Mail API:</strong> Microsoft Graph <code>/me/messages</code>, <code>/me/mailFolders</code> for categorization — Outlook uses folders + categories rather than Gmail labels, so map your internal Category model to Outlook's "categories" field.</li>
+<li><strong>Real-time sync:</strong> Microsoft Graph webhooks (subscriptions) instead of Gmail Pub/Sub push.</li>
+<li><strong>HTML rendering differences:</strong> Outlook's rendering engine (Word-based) has known CSS quirks — limited flexbox/grid support — so the formatting engine needs an Outlook-safe, table-based HTML template variant.</li>
+</ul>
+<p>The abstract base classes (<code>MailProvider</code>, <code>CalendarProvider</code>) to build against from day one are in <code>IMPLEMENTATION.md → Section 10</code> — write these even during Phase 1 so the Gmail adapter is the first implementation of an interface, not a hardcoded path.</p>
+</section>
+
+<section id="style-engine">
+<h2>13. Formatting &amp; Style Engine <span class="badge done">Resolved</span></h2>
+<p>This directly addresses the requirement that the agent follow exact formatting commands — signature, font, color, indentation, spacing — reliably rather than approximately.</p>
+
+<h3>13.1 Structured style object</h3>
+<p>The Drafter agent never freehand-generates raw HTML styling per request. Natural-language formatting instructions are parsed into a structured <code>StyleSpec</code>, which is then deterministically rendered to HTML/CSS — this keeps formatting consistent and testable, instead of hoping the model gets it right each time.</p>
+
+<div class="code-block">
+<div class="code-head"><span>style_spec.py</span><span>Python</span></div>
+<pre><span class="kw">class</span> <span class="ty">StyleSpec</span>(BaseModel):
+    tone: Literal[<span class="st">"formal"</span>, <span class="st">"casual"</span>, <span class="st">"neutral"</span>, <span class="st">"match_sender"</span>] = <span class="st">"neutral"</span>
+    font_family: <span class="ty">str</span> = <span class="st">"Arial"</span>
+    font_size_pt: <span class="ty">int</span> = <span class="nb">11</span>
+    text_color: <span class="ty">str</span> = <span class="st">"#000000"</span>
+    accent_color: <span class="ty">str</span> | <span class="ty">None</span> = <span class="ty">None</span>
+    line_spacing: <span class="ty">float</span> = <span class="nb">1.15</span>
+    paragraph_indent_px: <span class="ty">int</span> = <span class="nb">0</span>
+    include_signature: <span class="ty">bool</span> = <span class="ty">True</span>
+    signature_profile_id: <span class="ty">str</span> | <span class="ty">None</span> = <span class="ty">None</span>
+    bullet_style: Literal[<span class="st">"dash"</span>, <span class="st">"dot"</span>, <span class="st">"numbered"</span>] = <span class="st">"dot"</span>
+</pre>
+</div>
+
+<h3>13.2 Pipeline</h3>
+<ol>
+<li>Free text ("make it formal, blue headers, add my signature, use Calibri") goes through a dedicated, lightweight LLM call constrained with forced tool-call output into the <code>StyleSpec</code> schema.</li>
+<li>Markdown body content from the Drafter + the StyleSpec are passed to a Jinja2 template renderer that produces final HTML email markup — the LLM never hand-writes closing HTML/CSS directly, which avoids inconsistent or broken markup.</li>
+<li>Signatures are stored as pre-approved HTML snippets per <code>style_profiles</code> row, never regenerated by the LLM — this guarantees the signature is always exactly what the user configured, with zero risk of the model altering it.</li>
+</ol>
+<div class="callout warn"><strong>Note:</strong> Maintain two template variants — one standard HTML/CSS template, and one Outlook-safe table-based template for Phase 2.</div>
+<p>The style-parsing prompt, the forced-schema tool call, and the full Jinja2 template (standard + Outlook-safe) are in <code>IMPLEMENTATION.md → Section 11</code>.</p>
+</section>
+<section id="cost">
+<h2>13a. Cost &amp; Rate Limit Strategy <span class="badge gap">Gap fixed — was never addressed</span></h2>
+<div class="gap-card">
+<h4>⚠ What was missing</h4>
+<p>The original spec never discusses what auto-categorizing every incoming email via an LLM call actually costs at volume, or how to stay inside Gmail/Calendar API quotas. This is the kind of gap that's invisible in a demo and painful in production.</p>
+</div>
+
+<h3>Resolved approach</h3>
+<ul>
+<li><strong>Rules before LLM calls.</strong> The category-rules resolution order in § Categorization Design already avoids paying for an LLM call whenever a deterministic rule matches — this should eliminate the majority of routine mail (newsletters, known senders) from ever hitting the model.</li>
+<li><strong>Cheap model for high-volume, simple classification.</strong> Use a Haiku-class model for categorization; reserve Sonnet-class for drafting, summarization, and supervisor planning, where reasoning quality actually matters.</li>
+<li><strong>Batch where possible.</strong> When categorizing a backlog (e.g. first sync of an inbox), batch multiple email snippets into a single prompt rather than one call per email, with the model returning a structured array of classifications.</li>
+<li><strong>Cache aggressively.</strong> A given thread's summary doesn't need regenerating unless the thread has new messages — store summaries with a <code>thread_last_message_id</code> watermark and only regenerate when it advances.</li>
+<li><strong>Gmail/Calendar API quotas.</strong> Gmail API has per-user and per-project quota units (e.g. a <code>messages.list</code> call costs quota units that scale with result size). Track usage centrally and apply exponential backoff on 429/403 quota errors rather than hard-failing.</li>
+</ul>
+<p>The batched-categorization function and the quota-aware retry wrapper are in <code>IMPLEMENTATION.md → Section 12</code>.</p>
+</section>
+
+<section id="errors">
+<h2>13b. Error Handling &amp; Partial Failure <span class="badge gap">Gap fixed — was thin</span></h2>
+<div class="gap-card">
+<h4>⚠ What was missing</h4>
+<p>The original spec mentions idempotency testing as a goal but doesn't design for the actual failure modes: what happens when <code>send_email</code> succeeds at Gmail but the subsequent DB write fails? What happens when 1 of 50 emails times out mid-categorization batch?</p>
+</div>
+
+<h3>Resolved approach</h3>
+<h4>Send-then-record ordering</h4>
+<p>For any irreversible action, the provider-side call (the thing that can't be undone) always happens <strong>after</strong> the local intent is durably recorded, and the local record is updated <strong>after</strong> the provider confirms success — never the other way around:</p>
+<ol>
+<li>Write <code>drafts</code> row with <code>status='approved'</code> (durable intent, pre-send).</li>
+<li>Call <code>gmail_client.send_draft()</code>.</li>
+<li>On success: update <code>drafts.status='sent'</code> and write the <code>audit_log</code> row in the same DB transaction.</li>
+<li>On failure: <code>drafts.status</code> stays <code>'approved'</code> (not <code>'sent'</code>), and the failure is logged. A reconciliation job can later check "approved but not sent" drafts against actual Gmail state (a sent message with matching <code>provider_draft_id</code> may still exist if only the DB write failed) before deciding whether to retry or alert the user — this avoids ever blindly re-sending.</li>
+</ol>
+
+<h4>Partial batch failure</h4>
+<p>When the Categorizer processes a batch and one item fails (timeout, malformed response), the failure is isolated to that item — it's written to <code>errors</code> in state and to <code>audit_log</code>, while the rest of the batch proceeds. The graph never aborts an entire multi-email operation because one email failed.</p>
+
+<h4>Idempotency keys</h4>
+<p>Every CONFIRM action's <code>confirmation_token</code> doubles as an idempotency key: if the same token is submitted twice (e.g. a double-click or a retried request), the Permission Service checks whether that token has already been consumed in <code>approval_queue</code> before allowing the tool to execute again.</p>
+<p>The transactional send wrapper and the reconciliation job are in <code>IMPLEMENTATION.md → Section 13</code>.</p>
+</section>
+
+<section id="observability">
+<h2>14. Observability, Testing &amp; Evals <span class="badge done">Resolved</span></h2>
+<h3>14.1 Tracing</h3>
+<ul>
+<li>Use LangSmith (or an OpenTelemetry-compatible alternative) to trace every graph run: which nodes executed, in what order, with what inputs/outputs, and latency per step.</li>
+<li>Tag traces with <code>user_id</code> and <code>instruction</code> so you can replay a specific user's request when debugging.</li>
+</ul>
+
+<h3>14.2 Agent-level evals</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Agent</th><th>Eval Method</th></tr>
+<tr><td>Categorizer</td><td>Labeled test set of emails with ground-truth categories; measure precision/recall per category</td></tr>
+<tr><td>Summarizer</td><td>Human-graded rubric (faithfulness, completeness, conciseness); LLM-as-judge pass with periodic human spot-checks</td></tr>
+<tr><td>Drafter</td><td>Style-adherence checks (does output match requested StyleSpec exactly) + tone/quality human review</td></tr>
+<tr><td>Scheduler</td><td>Conflict-detection accuracy against synthetic calendar fixtures with known overlaps</td></tr>
+<tr><td>Supervisor</td><td>Task-decomposition correctness — does a given instruction route to the right agent set</td></tr>
+</table>
+</div>
+<div class="gap-card">
+<h4>⚠ Gap fixed: "labeled test set" needs an actual starting size</h4>
+<p>Start with a minimum of 50 hand-labeled emails per category for the Categorizer eval (300 total across the 6 default categories), and 20 hand-written instructions covering each agent combination for the Supervisor routing eval. This is a floor, not a target — but without a number, this step tends to get skipped entirely.</p>
+</div>
+
+<h3>14.3 Integration &amp; safety tests</h3>
+<ul>
+<li>Permission layer: automated tests asserting <code>send_email</code> and <code>create_event</code> cannot execute without a valid <code>confirmation_token</code>, including expired/reused token rejection.</li>
+<li>Idempotency: re-running an interrupted graph after backend restart must not double-send an email or double-book a calendar slot.</li>
+<li>Rate limiting / quota tests against Gmail and Calendar API limits, with backoff behavior verified.</li>
+</ul>
+</section>
+
+<section id="security">
+<h2>15. Security &amp; Compliance <span class="badge done">Resolved</span></h2>
+<ul>
+<li>Encrypt OAuth tokens at rest (AES-256 via a KMS-managed key) — never store raw access/refresh tokens in plaintext.</li>
+<li>Minimize email body retention: cache only metadata/snippets by default; fetch full bodies on demand rather than persisting them, to reduce PII exposure at rest.</li>
+<li>Scope requests to the minimum needed and clearly explain each scope's purpose on the consent screen.</li>
+<li>All <code>confirmation_tokens</code> are single-use, short-lived (15-minute expiry recommended), and scoped to one specific action + resource — they cannot be replayed.</li>
+<li>Implement per-user rate limits on agent-initiated sends to contain damage from a misconfigured rule or compromised session.</li>
+<li>Log access to the <code>audit_log</code> table itself — who viewed whose audit history — since it contains sensitive behavioral data.</li>
+<li>If targeting EU or regulated users, plan for GDPR data export/deletion endpoints early; the schema's <code>user_id</code> foreign keys with <code>ON DELETE CASCADE</code> make full account deletion straightforward.</li>
+</ul>
+</section>
+<section id="campaigns">
+<h2>15a. Bulk Campaigns — Personalized Outreach at Scale <span class="badge todo">Extension — not yet built</span></h2>
+<p class="lead">This section covers extending Mail Agent from a personal email assistant into a system that can send personalized emails to a list of recipients — e.g. "send a personalized internship outreach email to these 200 recruiters, mentioning their company and role, in a professional but enthusiastic tone." This was not part of the original architecture. It's a real extension, not a relabeling of what already exists.</p>
+
+<div class="callout info"><strong>Honest scope note.</strong> The core multi-agent orchestration, drafting, and permission concepts in this product transfer directly to bulk sending — that part of the foundation is solid. But campaigns introduce genuinely new concerns this system doesn't have yet: a recipient dataset model, bulk approval (so the user isn't clicking "Approve" 200 times), and rate-limited sending (Gmail will throttle or flag an account that fires 200 sends in a tight loop). Treat this as new scope, not a free extension.</div>
+
+<h3>15a.1 What's missing vs. what already transfers</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Capability</th><th>Status</th><th>Notes</th></tr>
+<tr><td>Multi-agent orchestration (Supervisor, parallel workers)</td><td><span class="badge done">Transfers directly</span></td><td>The corrected state object with reducers (§4.3) is exactly what makes 200 parallel personalization tasks safe — this was the right fix for the right reason.</td></tr>
+<tr><td>Draft generation, StyleSpec, signatures</td><td><span class="badge done">Transfers directly</span></td><td>The Drafter agent and style engine don't care if they're called once or 200 times.</td></tr>
+<tr><td>Permission/approval concept</td><td><span class="badge gap">Needs extension</span></td><td>Current model is one-action-one-approval. Needs a bulk approval mode — see §15a.4.</td></tr>
+<tr><td>Recipient dataset handling</td><td><span class="badge critical">Missing entirely</span></td><td>No concept of a recipient list, personalization variables, or campaign currently exists in the schema.</td></tr>
+<tr><td>Rate-limited, queued sending</td><td><span class="badge critical">Missing entirely</span></td><td>Current <code>send_email</code> tool sends one message per gated call. Looping it 200 times will hit Gmail throttling and spam heuristics.</td></tr>
+<tr><td>Campaign progress tracking, retries</td><td><span class="badge critical">Missing entirely</span></td><td>No state for "176 sent, 8 failed, 16 queued."</td></tr>
+</table>
+</div>
+
+<h3>15a.2 New agent: Campaign Manager</h3>
+<p>Added to the existing roster from §5. It sits between the Supervisor and the per-recipient worker fan-out, and owns chunking, progress, retries, and (later) pause/resume.</p>
+<div class="table-wrap">
+<table>
+<tr><th>Agent</th><th>Role</th><th>Tools</th><th>Output</th></tr>
+<tr><td>Campaign Manager</td><td>Loads recipient list, chunks into batches, tracks send progress, handles retries</td><td><code>load_recipients</code>, <code>get_campaign_status</code></td><td>Campaign state + per-recipient task list</td></tr>
+</table>
+</div>
+<div class="callout warn"><strong>Scope discipline:</strong> build chunking, progress tracking, and retries first (P0 for this extension). Pause/resume and analytics (open rate, reply tracking) are real additional subsystems — open tracking specifically requires pixel injection or link rewriting, which has its own privacy and implementation considerations. Don't bundle them into the first version.</div>
+
+<h3>15a.3 Revised flow for a campaign instruction</h3>
+<div class="diagram"><pre>User: "Send personalized outreach to these 200 recruiters..."
+      │
+      ▼
+ ┌─────────────┐
+ │ Supervisor  │  detects: bulk send, N recipients → routes to Campaign Manager
+ └─────┬───────┘
+       ▼
+ ┌──────────────────┐
+ │ Campaign Manager  │  loads recipient list, creates campaign + batches
+ └─────┬─────────────┘
+       │  parallel, chunked (e.g. 20 at a time)
+   ┌───┴────────────────────────┐
+   ▼                            ▼
+Context Enricher          Context Enricher       (per-recipient, parallel)
+   │                            │
+   ▼                            ▼
+Personalization Agent     Personalization Agent
+   │                            │
+   ▼                            ▼
+Drafter Agent              Drafter Agent
+   └──────────────┬─────────────┘
+                   ▼
+            Bulk Permission Gate
+        (1 approval → preview sample
+         + N drafts, not N approvals)
+                   ▼
+         Rate-Limited Sender Queue
+        (e.g. 10/minute, checkpointed)
+                   ▼
+         Campaign Status + Audit Log</pre></div>
+
+<h3>15a.4 Bulk approval — the key UX/schema change</h3>
+<p>The existing <code>approval_queue</code> table is action-centric: one row, one pending action. Campaigns need a parent record representing "approve this batch of N personalized emails" with a sampled preview, not N individual rows requiring N clicks.</p>
+<ul>
+<li>The dashboard shows a stratified preview — 3–5 actual generated drafts spanning different recipients, not just the first few — plus aggregate stats (recipient count, any personalization fields that came back empty or low-confidence).</li>
+<li>Any individual draft where the personalization agent flagged missing or uncertain data (e.g. couldn't find a company name) is pulled out for individual review rather than silently bundled into "Approve All" — sending a wrong or blank personalization field to a real recipient is the actual risk here, and it's worth being deliberate about catching it before scale, not after.</li>
+<li>"Approve All" issues one batch-scoped confirmation token that authorizes the Sender Queue to proceed through the whole batch — not N individual tokens.</li>
+</ul>
+
+<h3>15a.5 Rate-limited sending</h3>
+<p>Never loop <code>send_email</code> directly across a recipient list. Gmail enforces daily sending caps (lower on consumer accounts, higher on Workspace) and per-minute burst/anti-spam heuristics — firing 200 sends in a tight loop risks throttling or the account getting flagged, independent of the daily cap. The Sender Queue paces sends (e.g. 10/minute), checkpoints progress so a crash mid-campaign doesn't lose state or double-send, and retries failed sends in isolation without blocking the rest of the batch.</p>
+
+<h3>15a.6 New database tables</h3>
+<div class="table-wrap">
+<table>
+<tr><th>Table</th><th>Purpose</th></tr>
+<tr><td><code>campaigns</code></td><td>One row per outreach campaign — name, instruction, status, created_at</td></tr>
+<tr><td><code>campaign_recipients</code></td><td>One row per recipient — personalization variables, per-recipient status (pending/drafted/sent/failed)</td></tr>
+<tr><td><code>campaign_runs</code></td><td>Tracks each send-queue execution pass — progress counters, rate-limit state, resumability</td></tr>
+</table>
+</div>
+
+<h3>15a.7 New state fields</h3>
+<p>Added to <code>MailAgentState</code> from §4.3 — these track a campaign rather than a single email, and the multi-writer fields still need the same <code>operator.add</code> reducer treatment as the original list-shaped fields:</p>
+<div class="table-wrap">
+<table>
+<tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+<tr><td><code>campaign_id</code></td><td><code>str</code></td><td>Single-writer, no reducer needed</td></tr>
+<tr><td><code>recipient_batches</code></td><td><code>Annotated[list[dict], add]</code></td><td>Written by parallel Context Enricher / Personalization tasks</td></tr>
+<tr><td><code>send_progress</code></td><td><code>dict</code></td><td>Single-writer (Campaign Manager owns updates)</td></tr>
+<tr><td><code>failed_recipients</code></td><td><code>Annotated[list[dict], add]</code></td><td>Written by parallel Sender Queue workers</td></tr>
+</table>
+</div>
+
+<h3>15a.8 Where this fits in the roadmap</h3>
+<p>This is <strong>Phase 1.5</strong> — after the core single-recipient system is working and tested (Milestones 1–4 in §16), and before the Outlook migration (Milestone 7). Campaigns should be built against a proven, already-tested send path, not in parallel with it.</p>
+<p>Full schema, the Campaign Manager agent, bulk approval logic, and the rate-limited sender queue implementation are in <code>IMPLEMENTATION.md → Section 14</code>.</p>
+</section>
+
+<section id="roadmap">
+<h2>16. Build Roadmap <span class="badge gap">Gap fixed: original milestones reordered + memory/categorization slotted in</span></h2>
+<p>The original 7 milestones are kept, with the two design gaps (conversation memory, categorization rules) pulled forward into Milestone 1-2 instead of being implicit, since later milestones depend on them.</p>
+
+<h3>Milestone 1 — Foundation <span class="phase-pill">Week 1–2</span></h3>
+<ul>
+<li>Google Cloud project, OAuth flow, FastAPI skeleton</li>
+<li>Postgres schema deployed — <strong>including</strong> <code>conversations</code>, <code>messages</code>, <code>category_rules</code> from day one, not retrofitted later</li>
+<li>Abstract <code>MailProvider</code> / <code>CalendarProvider</code> base classes written before the Gmail adapter, so Gmail is the first implementation, not a hardcoded path</li>
+<li>Single-agent prototype: read + categorize only, no LangGraph yet — validate Gmail API integration end to end</li>
+</ul>
+
+<h3>Milestone 2 — Multi-Agent Core <span class="phase-pill">Week 3–4</span></h3>
+<ul>
+<li>Introduce LangGraph: Supervisor + Reader + Categorizer + Summarizer agents, using the <strong>corrected</strong> state object with reducers (§4.3)</li>
+<li>Conversation memory wired in — Supervisor loads recent turns before planning</li>
+<li>Basic chat UI wired to the graph via FastAPI WebSocket</li>
+</ul>
+
+<h3>Milestone 3 — Drafting &amp; Style Engine <span class="phase-pill">Week 5</span></h3>
+<ul>
+<li>Drafter agent, StyleSpec parsing, Jinja2 HTML rendering, signature management</li>
+<li><code>create_draft</code> tool fully working, visible in dashboard</li>
+</ul>
+
+<h3>Milestone 4 — Permission Layer &amp; Sending <span class="phase-pill">Week 6</span></h3>
+<ul>
+<li><code>approval_queue</code>, confirmation tokens, <code>permission_rules</code>, dashboard approval UX</li>
+<li><code>send_email</code> gated end-to-end, using the send-then-record ordering from §13b — this is the first irreversible action in the system, test heavily</li>
+</ul>
+
+<h3>Milestone 5 — Calendar &amp; Reminders <span class="phase-pill">Week 7</span></h3>
+<ul>
+<li>Scheduler and Reminder agents, conflict checking, <code>create_event</code> gated flow</li>
+</ul>
+
+<h3>Milestone 6 — Dashboard Polish &amp; Observability <span class="phase-pill">Week 8</span></h3>
+<ul>
+<li>Full dashboard views (§10), LangSmith tracing, audit feed UI</li>
+<li>Agent-level evals against labeled test sets — minimum 300 labeled emails, 20 routing instructions (§14.2)</li>
+<li>Cost controls and quota backoff in place before any real-volume usage (§13a)</li>
+</ul>
+
+<h3>Milestone 7 — Outlook Adapter <span class="phase-pill">Phase 2, Week 9+</span></h3>
+<ul>
+<li><code>OutlookProvider</code> and <code>OutlookCalendarProvider</code> implementing the same abstract interfaces from Milestone 1</li>
+<li>Outlook-safe HTML template variant for the style engine</li>
+</ul>
+</section>
+
+<section id="todo">
+<h2>17. Complete To-Do List <span class="badge critical">Nothing built yet — start at the top</span></h2>
+<p>Every item below is unstarted. Ordered by what actually blocks what. P0 = blocks everything after it. P1 = needed before the prototype is usable. P2 = needed before anything touches a real inbox.</p>
+
+<h3>Environment &amp; accounts</h3>
+<ul class="checklist">
+<li><span class="check"></span><span>Create Google Cloud project; enable Gmail API, Calendar API, Tasks API</span></li>
+<li><span class="check"></span><span>Configure OAuth consent screen + create OAuth 2.0 Client ID</span></li>
+<li><span class="check"></span><span>Provision PostgreSQL instance (local Docker for prototype; managed Postgres for anything beyond)</span></li>
+<li><span class="check"></span><span>Provision Redis instance (cache + Celery broker)</span></li>
+<li><span class="check"></span><span>Get Anthropic API key, set up billing/usage alerts</span></li>
+<li><span class="check"></span><span>Set up LangSmith project for tracing</span></li>
+</ul>
+
+<h3>P0 — Foundation (nothing else works without this)</h3>
+<div class="todo-card p0"><div class="meta">Backend</div><p>Scaffold FastAPI project structure (routers, dependencies, settings via Pydantic Settings)</p></div>
+<div class="todo-card p0"><div class="meta">Backend</div><p>Implement Google OAuth flow (authorize redirect, callback, token storage with encryption)</p></div>
+<div class="todo-card p0"><div class="meta">Database</div><p>Write and run the full schema migration — all 13 tables including the 3 added in §8.2</p></div>
+<div class="todo-card p0"><div class="meta">Architecture</div><p>Write <code>MailProvider</code> and <code>CalendarProvider</code> abstract base classes before writing <code>GmailProvider</code></p></div>
+<div class="todo-card p0"><div class="meta">Integration</div><p>Implement <code>GmailProvider</code>: list, get_thread, create_draft, send_draft, apply_label</p></div>
+<div class="todo-card p0"><div class="meta">Integration</div><p>Implement <code>GoogleCalendarProvider</code>: check_availability, create_event</p></div>
+
+<h3>P1 — Working prototype</h3>
+<div class="todo-card p1"><div class="meta">Agents</div><p>Implement the corrected <code>MailAgentState</code> with reducers on all multi-writer fields</p></div>
+<div class="todo-card p1"><div class="meta">Agents</div><p>Build Supervisor node + routing logic (<code>route_to_workers</code>)</p></div>
+<div class="todo-card p1"><div class="meta">Agents</div><p>Build Reader, Categorizer, Summarizer agent nodes</p></div>
+<div class="todo-card p1"><div class="meta">Categorization</div><p>Implement <code>category_rules</code> resolution + LLM fallback with confidence threshold</p></div>
+<div class="todo-card p1"><div class="meta">Memory</div><p>Implement conversation/message persistence + recent-turns loader feeding the Supervisor</p></div>
+<div class="todo-card p1"><div class="meta">Permission</div><p>Build Permission Service: policy classification (AUTO/CONFIRM/BLOCKED), token issuance/verification</p></div>
+<div class="todo-card p1"><div class="meta">Permission</div><p>Wire LangGraph <code>interrupt()</code> + Postgres checkpointer for pause/resume on CONFIRM actions</p></div>
+<div class="todo-card p1"><div class="meta">Style Engine</div><p>Build StyleSpec schema + parsing prompt + Jinja2 standard HTML template</p></div>
+<div class="todo-card p1"><div class="meta">Agents</div><p>Build Drafter agent using the style engine</p></div>
+<div class="todo-card p1"><div class="meta">Frontend</div><p>Build chat panel (send instruction, stream agent responses via WebSocket)</p></div>
+<div class="todo-card p1"><div class="meta">Frontend</div><p>Build Approval Queue view (Approve/Edit/Reject, shows agent reasoning)</p></div>
+<div class="todo-card p1"><div class="meta">Sending</div><p>Build Sender agent + gated <code>send_email</code> tool using the send-then-record ordering (§13b)</p></div>
+
+<h3>P2 — Before touching a real inbox at any volume</h3>
+<div class="todo-card p2"><div class="meta">Reliability</div><p>Implement transactional send wrapper + reconciliation job for partial-failure recovery</p></div>
+<div class="todo-card p2"><div class="meta">Reliability</div><p>Implement idempotency check on confirmation token reuse</p></div>
+<div class="todo-card p2"><div class="meta">Cost</div><p>Switch categorization to Haiku-class model + implement batching for backlog sync</p></div>
+<div class="todo-card p2"><div class="meta">Cost</div><p>Implement summary caching keyed on thread's last-message watermark</p></div>
+<div class="todo-card p2"><div class="meta">Calendar</div><p>Build Scheduler agent: meeting-intent detection, conflict check, gated <code>create_event</code></p></div>
+<div class="todo-card p2"><div class="meta">Reminders</div><p>Build Reminder agent + <code>create_task</code>/<code>create_reminder</code> tools</p></div>
+<div class="todo-card p2"><div class="meta">Sync</div><p>Replace polling with Gmail Push Notifications via Pub/Sub</p></div>
+<div class="todo-card p2"><div class="meta">Security</div><p>Confirm token encryption at rest (KMS), audit log access logging, per-user send rate limits</p></div>
+<div class="todo-card p2"><div class="meta">Evals</div><p>Build the 300-email categorization eval set + 20-instruction routing eval set; wire into CI</p></div>
+<div class="todo-card p2"><div class="meta">Dashboard</div><p>Build remaining dashboard views: Inbox Overview, Audit Feed, Style Profiles, Permission Rules, Calendar View, Agent Status Panel</p></div>
+
+<h3>Phase 2 — Outlook</h3>
+<div class="todo-card p2"><div class="meta">Phase 2</div><p>Microsoft Entra ID app registration, MSAL OAuth flow</p></div>
+<div class="todo-card p2"><div class="meta">Phase 2</div><p>Implement <code>OutlookProvider</code> and <code>OutlookCalendarProvider</code></p></div>
+<div class="todo-card p2"><div class="meta">Phase 2</div><p>Outlook-safe table-based HTML template variant</p></div>
+<div class="todo-card p2"><div class="meta">Phase 2</div><p>Microsoft Graph webhook subscriptions for real-time sync</p></div>
+</section>
+
+<section id="stack">
+<h2>18. Technology Stack Summary <span class="badge done">Resolved</span></h2>
+<div class="table-wrap">
+<table>
+<tr><th>Layer</th><th>Technology</th></tr>
+<tr><td>Agent Orchestration</td><td>LangGraph + LangChain</td></tr>
+<tr><td>LLM</td><td>Claude (Anthropic API) — Sonnet for drafting/summarizing/supervising, Haiku for high-volume categorization</td></tr>
+<tr><td>Backend API</td><td>FastAPI (Python 3.11+)</td></tr>
+<tr><td>Background Jobs</td><td>Celery + Redis (or APScheduler for prototype)</td></tr>
+<tr><td>Database</td><td>PostgreSQL (+ <code>langgraph-checkpoint-postgres</code> for graph state)</td></tr>
+<tr><td>Cache / Queue</td><td>Redis</td></tr>
+<tr><td>Frontend</td><td>React + TypeScript, Vite, Tailwind CSS, shadcn/ui</td></tr>
+<tr><td>Real-time</td><td>WebSockets (FastAPI native or Socket.IO)</td></tr>
+<tr><td>Email Provider (Phase 1)</td><td>Gmail API + Google Calendar API + Google Tasks API</td></tr>
+<tr><td>Email Provider (Phase 2)</td><td>Microsoft Graph API (Outlook Mail + Calendar)</td></tr>
+<tr><td>Tracing / Evals</td><td>LangSmith</td></tr>
+<tr><td>Templating</td><td>Jinja2 (HTML email rendering)</td></tr>
+<tr><td>Auth</td><td>OAuth 2.0 (Google), MSAL (Microsoft)</td></tr>
+<tr><td>Secrets / Encryption</td><td>Cloud KMS (GCP) or equivalent for token encryption at rest</td></tr>
+</table>
+</div>
+</section>
+
+<footer class="doc-footer">
+  <p><strong>Companion file:</strong> <code>IMPLEMENTATION.md</code> contains the complete, runnable code for every section referenced above — schema migrations, the LangGraph graph definition, all tool implementations, the permission service, the style engine, and the Gmail/Calendar API integration code.</p>
+  <p>Mail Agent — Complete Build Guide · v1.0 · June 2026</p>
+</footer>
+
+
+</main>
+</div>
+
+<script>
+const links = document.querySelectorAll('.nav-link');
+const sections = Array.from(links).map(l => document.querySelector(l.getAttribute('href'))).filter(Boolean);
+
+function onScroll(){
+  let current = sections[0];
+  const scrollPos = window.scrollY + 100;
+  for (const sec of sections){
+    if (sec.offsetTop <= scrollPos) current = sec;
+  }
+  links.forEach(l => l.classList.remove('active'));
+  if (current){
+    const active = document.querySelector(`.nav-link[href="#${current.id}"]`);
+    if (active) active.classList.add('active');
+  }
+}
+window.addEventListener('scroll', onScroll, {passive:true});
+onScroll();
+</script>
+</body>
+</html>
