@@ -11,6 +11,7 @@ DEFAULT_LEVELS = {
     "send_email": "CONFIRM",
     "create_event": "CONFIRM",
     "update_event": "CONFIRM",
+    "create_cron_job": "CONFIRM",
 }
 
 async def classify(user_id: str, action_type: str, resource: str) -> str:
@@ -26,15 +27,32 @@ async def classify(user_id: str, action_type: str, resource: str) -> str:
     return DEFAULT_LEVELS.get(action_type, "CONFIRM")  # unknown actions default to CONFIRM, never AUTO
 
 
-async def permission_gate_node(state: MailAgentState) -> dict:
+from langchain_core.runnables import RunnableConfig
+
+async def permission_gate_node(state: MailAgentState, config: RunnableConfig) -> dict:
+    from langchain_core.runnables.config import var_child_runnable_config
+    var_child_runnable_config.set(config)
+    
     from app.permissions.tokens import issue_token
     from app.notifications.websocket import notify_dashboard
     from app.db.session import get_db
 
     db = get_db()
     resolved_approvals = []
+    needs_interrupt = False
 
     for action in state.get("pending_approvals", []):
+        # Skip actions that have already been resolved (e.g. from a previous pass or resume)
+        if action.get("status") in ("approved", "blocked"):
+            resolved_approvals.append(action)
+            continue
+
+        # If it already has a database approval row ID, we don't need to insert it again.
+        if action.get("approval_db_id"):
+            resolved_approvals.append(action)
+            needs_interrupt = True
+            continue
+
         level = await classify(state["user_id"], action["type"], action["resource"])
 
         if level == "AUTO":
@@ -44,9 +62,9 @@ async def permission_gate_node(state: MailAgentState) -> dict:
         elif level == "CONFIRM":
             import json
             row = await db.fetchrow(
-                "INSERT INTO approval_queue (user_id, action_type, resource_id, payload, agent_reasoning, expires_at) "
-                "VALUES ($1, $2, $3, $4::jsonb, $5, now() + interval '15 minutes') RETURNING id",
-                state["user_id"], action["type"], action["resource"],
+                "INSERT INTO approval_queue (user_id, conversation_id, action_type, resource_id, payload, agent_reasoning, expires_at) "
+                "VALUES ($1, $2, $3, $4, $5::jsonb, $6, now() + interval '15 minutes') RETURNING id",
+                state["user_id"], state.get("conversation_id"), action["type"], action["resource"],
                 json.dumps(action.get("payload", {})), action.get("reasoning", "")
             )
             approval_id = row["id"]
@@ -56,17 +74,39 @@ async def permission_gate_node(state: MailAgentState) -> dict:
                 token, approval_id
             )
             await notify_dashboard(state["user_id"], {"approval_id": str(approval_id), "action": action})
-            # Pause graph execution here. The /approvals/{id}/approve route resumes
-            # the graph from this exact checkpoint once the user acts.
-            interrupt({"approval_id": str(approval_id), "action": action})
+            
+            # Store the approval_id and token on the action so it can be used on resume
+            action["approval_db_id"] = str(approval_id)
+            action["confirmation_token"] = token
+            needs_interrupt = True
 
         elif level == "BLOCKED":
             action["status"] = "blocked"
             return {"errors": [{"action": action, "reason": "blocked_by_policy"}]}
 
-    return {"pending_approvals": resolved_approvals}
+    if needs_interrupt:
+        # Pause graph execution here. The /approvals/{id}/approve route resumes
+        # the graph from this exact checkpoint once the user acts.
+        # When resumed, we'll re-enter this node. Check for resume signal.
+        resume_data = interrupt({"pending_confirmation": True, "actions": state.get("pending_approvals", [])})
+        
+        # After resume: mark all CONFIRM actions as approved
+        if resume_data and resume_data.get("approved"):
+            for action in state.get("pending_approvals", []):
+                if action.get("status") != "approved" and action.get("confirmation_token"):
+                    action["status"] = "approved"
+                    resolved_approvals.append(action)
+        
+    from app.agents.state import ResetList
+    return {"pending_approvals": ResetList(resolved_approvals)}
 
 
 def needs_human_approval(state: MailAgentState) -> str:
-    pending = [a for a in state.get("pending_approvals", []) if a.get("status") != "approved"]
-    return "approve_required" if pending else "auto_approved"
+    """Check if any pending actions still need human confirmation."""
+    pending = state.get("pending_approvals", [])
+    # If there are no pending actions at all, auto-approve
+    if not pending:
+        return "auto_approved"
+    # Check if ALL actions have been approved
+    all_approved = all(a.get("status") == "approved" for a in pending)
+    return "auto_approved" if all_approved else "approve_required"

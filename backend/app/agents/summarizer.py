@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
 from app.db.session import get_db
-from app.agents.llm_adapter import Anthropic
+from app.agents.llm_adapter import GroqClient
 from app.config import settings
 from app.agents.state import MailAgentState
 
@@ -9,7 +9,7 @@ from app.agents.state import MailAgentState
 async def get_or_create_summary(user_id: str, thread_id: str, thread_messages: List[Dict[str, Any]], groq_api_key: str) -> str:
     """
     Check if a cached summary exists matching the latest message ID (watermark).
-    Generates a new summary using Claude if the cache is stale or missing.
+    Generates a new summary using Groq if the cache is stale or missing.
     """
     db = get_db()
     if not thread_messages:
@@ -25,7 +25,7 @@ async def get_or_create_summary(user_id: str, thread_id: str, thread_messages: L
         print(f"Summarizer: Found cached summary for thread {thread_id} (watermark matched).")
         return cached["summary"]  # thread hasn't advanced — skip the LLM call entirely
 
-    print(f"Summarizer: Cache miss/stale for thread {thread_id}. Calling Claude...")
+    print(f"Summarizer: Cache miss/stale for thread {thread_id}. Calling Groq...")
     full_text = "\n---\n".join(f"From: {m.get('sender')} | {m.get('snippet', '')}" for m in thread_messages)
     
     # Handle mock API key
@@ -34,9 +34,9 @@ async def get_or_create_summary(user_id: str, thread_id: str, thread_messages: L
     if not has_groq:
         summary = f"Mock summary of thread {thread_id} regarding: '{thread_messages[-1].get('snippet', '')[:50]}'"
     else:
-        client = Anthropic(api_key=groq_api_key)
+        client = GroqClient(api_key=groq_api_key)
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="llama-3.3-70b-versatile",
             max_tokens=300,
             messages=[{"role": "user", "content": f"Summarize this email thread concisely:\n\n{full_text}"}]
         )

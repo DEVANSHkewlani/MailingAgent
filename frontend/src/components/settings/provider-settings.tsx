@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '@nanostores/react'
 import { Link as LinkIcon, Mail, Check, Key } from 'lucide-react'
-import { getGoogleLoginUrl, checkGoogleAuthStatus } from '../../lib/api'
+import { getGoogleLoginUrl, checkGoogleAuthStatus, fetchGoogleProfile, type GoogleProfile } from '../../lib/api'
 import { $userId } from '../../store/auth'
 import { Button } from '../ui/button'
 import { ListRow, SectionHeading } from './primitives'
@@ -14,6 +14,7 @@ import { ListRow, SectionHeading } from './primitives'
 export function ProviderSettings() {
   const userId = useStore($userId)
   const [googleConnected, setGoogleConnected] = useState(false)
+  const [googleProfile, setGoogleProfile] = useState<GoogleProfile | null>(null)
 
   // Local storage state for custom keys
   const [groqKey, setGroqKey] = useState(localStorage.getItem('mailing_agent_groq_key') || '')
@@ -24,9 +25,16 @@ export function ProviderSettings() {
     checkGoogleAuthStatus(userId)
       .then(connected => setGoogleConnected(connected))
       .catch(err => console.error("ProviderSettings: Google status check failed", err))
+    fetchGoogleProfile(userId)
+      .then(profile => {
+        setGoogleProfile(profile)
+        setGoogleConnected(profile.connected)
+      })
+      .catch(err => console.error("ProviderSettings: Google profile fetch failed", err))
   }, [userId])
 
   const handleConnectGoogle = () => {
+    localStorage.setItem('open_settings_on_load', 'providers')
     window.location.href = getGoogleLoginUrl(userId)
   }
 
@@ -64,7 +72,26 @@ export function ProviderSettings() {
                 )}
               </div>
             }
-            description="Syncs Gmail messages, drafts list, and Google Calendar events availability."
+            description={
+              googleProfile?.connected ? (
+                <div className="space-y-1">
+                  <div>Connected as {googleProfile.email || googleProfile.display_name || 'Google account'}.</div>
+                  <div className="font-mono text-[0.6875rem] text-(--ui-text-quaternary)">
+                    User ID: {googleProfile.user_id}
+                  </div>
+                  {googleProfile.expires_at && (
+                    <div>Token expires: {new Date(googleProfile.expires_at).toLocaleString()}</div>
+                  )}
+                  {googleProfile.scopes && googleProfile.scopes.length > 0 && (
+                    <div className="max-w-xl break-words text-[0.6875rem] text-(--ui-text-quaternary)">
+                      Scopes: {googleProfile.scopes.join(', ')}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                'Syncs Gmail messages, drafts list, and Google Calendar events availability.'
+              )
+            }
             action={
               <Button
                 onClick={handleConnectGoogle}

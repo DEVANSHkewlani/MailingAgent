@@ -1,7 +1,7 @@
 import json
 from typing import List, Dict, Any
 from app.agents.state import MailAgentState
-from app.agents.llm_adapter import Anthropic
+from app.agents.llm_adapter import GroqClient
 from app.config import settings
 
 # Initialize client placeholder removed (initialized inside node).
@@ -10,7 +10,11 @@ SCHEDULER_SYSTEM_PROMPT = """You are the Scheduler Agent. Extract meeting parame
 from the user instruction.
 
 Return a JSON tool call schema matching 'submit_meeting_details'.
-For start_iso and end_iso, ensure they are formatted as valid UTC ISO 8601 strings (e.g. 2026-07-03T10:00:00Z).
+
+CRITICAL timezone rules:
+1. The user's query relative times (e.g., 'today 9 pm', 'tomorrow morning') are relative to the user's local timezone.
+2. Resolve these times first in the user's local timezone using the supplied User Local Time.
+3. Then, convert the resolved local times to UTC ISO 8601 format (e.g. 'YYYY-MM-DDTHH:MM:SSZ') for 'start_iso' and 'end_iso'.
 """
 
 async def scheduler_agent_node(state: MailAgentState) -> dict:
@@ -19,7 +23,7 @@ async def scheduler_agent_node(state: MailAgentState) -> dict:
     checks conflicts via Google Calendar, and queues 'create_event' tasks for approval.
     """
     print("Scheduler Agent: Starting...")
-    client = Anthropic(api_key=state.get("groq_api_key"))
+    client = GroqClient(api_key=state.get("groq_api_key"))
     from app.providers.factory import get_calendar_provider
 
     user_id = state.get("user_id")
@@ -44,18 +48,28 @@ async def scheduler_agent_node(state: MailAgentState) -> dict:
         import os
         has_groq = (state.get("groq_api_key") and len(state.get("groq_api_key")) > 10) or os.getenv("GROQ_API_KEY")
         if not has_groq:
-            extracted = {
-                "title": "Meeting with Boss",
-                "start_iso": "2026-07-03T10:00:00Z",
-                "end_iso": "2026-07-03T10:30:00Z",
-                "attendees": ["boss@example.com"]
-            }
+            errors.append({
+                "task": task,
+                "error": "Scheduling requires a Groq API key so I can parse the event title, time, and attendees. Add it in Settings > Email Connections, then ask again."
+            })
+            continue
         else:
+            from datetime import datetime, timezone
+            now_iso = datetime.now(timezone.utc).isoformat()
+            local_now = datetime.now().astimezone()
+            local_iso = local_now.isoformat()
+            local_tz = local_now.tzname()
+            
+            prompt_content = (
+                f"Current UTC time: {now_iso}\n"
+                f"Current User Local Time: {local_iso} (Timezone: {local_tz})\n\n"
+                f"Extract details from: {task_text}"
+            )
             response = client.messages.create(
-                model="claude-3-5-sonnet-20241022",
+                model="llama-3.3-70b-versatile",
                 max_tokens=400,
                 system=SCHEDULER_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": f"Extract details from: {task_text}"}],
+                messages=[{"role": "user", "content": prompt_content}],
                 tools=[{
                     "name": "submit_meeting_details",
                     "description": "Submit meeting parameters",
@@ -63,8 +77,8 @@ async def scheduler_agent_node(state: MailAgentState) -> dict:
                         "type": "object",
                         "properties": {
                             "title": {"type": "string"},
-                            "start_iso": {"type": "string", "description": "ISO 8601 UTC time string"},
-                            "end_iso": {"type": "string", "description": "ISO 8601 UTC time string"},
+                            "start_iso": {"type": "string", "description": "ISO 8601 UTC time string (e.g. 2026-07-03T10:00:00Z)"},
+                            "end_iso": {"type": "string", "description": "ISO 8601 UTC time string (e.g. 2026-07-03T10:00:00Z)"},
                             "attendees": {"type": "array", "items": {"type": "string"}}
                         },
                         "required": ["title", "start_iso", "end_iso"]

@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '@nanostores/react'
 import { Calendar, Bell, Shield } from 'lucide-react'
-import { handleSendMessage } from '../../store/chat'
+import { handleSendMessage, $emailRefreshSignal } from '../../store/chat'
 import { $activeView } from '../../store/layout'
 import { $userId } from '../../store/auth'
 import { Button } from '../ui/button'
@@ -24,8 +24,10 @@ export function CalendarView() {
   const [loading, setLoading] = useState(false)
   
   const userId = useStore($userId)
+  const refreshSignal = useStore($emailRefreshSignal)
 
   // Fetch calendar events and reminders from the real database
+  // Re-fetches when the agent creates new events (via refreshSignal)
   useEffect(() => {
     let active = true
     setLoading(true)
@@ -38,7 +40,7 @@ export function CalendarView() {
         if (active) setLoading(false)
       })
     return () => { active = false }
-  }, [userId])
+  }, [userId, refreshSignal])
 
   const triggerAutoClean = () => {
     handleSendMessage($userId.get(), 'Reconcile my schedule and clean up duplicate reminders.')

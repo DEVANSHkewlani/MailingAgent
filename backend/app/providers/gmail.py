@@ -52,13 +52,34 @@ class GmailProvider(MailProvider):
             })
         return Thread(id=thread_id, messages=parsed_messages)
 
-    def create_draft(self, thread_id: str, html_body: str, subject: Optional[str]) -> Draft:
+    def create_draft(self, thread_id: str, html_body: str, subject: Optional[str], to: Optional[str] = None) -> Draft:
         mime = MIMEText(html_body, "html")
         if subject:
             mime["subject"] = subject
         
-        # When creating a draft in a thread, we should reference the thread ID
-        # and set appropriate headers (e.g. In-Reply-To and References) in a production app.
+        # If no explicit `to` was passed, look up the thread to find the original sender
+        if to:
+            mime["to"] = to
+        else:
+            try:
+                thread_data = self.service.users().threads().get(
+                    userId="me", id=thread_id, format="metadata",
+                    metadataHeaders=["From", "Message-ID"]
+                ).execute()
+                msgs = thread_data.get("messages", [])
+                if msgs:
+                    last_msg = msgs[-1]
+                    headers = last_msg.get("payload", {}).get("headers", [])
+                    sender = next((h["value"] for h in headers if h["name"].lower() == "from"), None)
+                    msg_id = next((h["value"] for h in headers if h["name"].lower() == "message-id"), None)
+                    if sender:
+                        mime["to"] = sender
+                    if msg_id:
+                        mime["In-Reply-To"] = msg_id
+                        mime["References"] = msg_id
+            except Exception as e:
+                print(f"GmailProvider: Could not look up thread for To header: {e}")
+
         raw = base64.urlsafe_b64encode(mime.as_bytes()).decode()
         result = self.service.users().drafts().create(
             userId="me", body={"message": {"raw": raw, "threadId": thread_id}}

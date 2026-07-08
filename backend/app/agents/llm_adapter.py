@@ -7,7 +7,6 @@ from app.config import settings
 
 # Thread-safe context keys mapped from frontend headers
 active_groq_key: ContextVar[str] = ContextVar("active_groq_key", default="")
-active_anthropic_key: ContextVar[str] = ContextVar("active_anthropic_key", default="")
 
 class MessagesMock:
     def __init__(self, api_key: str):
@@ -119,7 +118,7 @@ class MessagesMock:
             # Propagate exception to the client
             raise HTTPException(status_code=500, detail=f"Groq API Call Failed: {str(e)}")
 
-class Anthropic:
+class GroqClient:
     def __init__(self, api_key: str = None):
         self.passed_key = api_key
         self.is_groq = True
@@ -141,3 +140,6 @@ class Anthropic:
                 detail="Groq API Key is not configured. Please paste your Groq API Key in Settings > Email Connections to run the agent."
             )
         return MessagesMock(key)
+
+# Legacy alias for backward compatibility
+Anthropic = GroqClient

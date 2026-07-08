@@ -6,7 +6,7 @@
 import { useState } from 'react'
 import { useStore } from '@nanostores/react'
 import { Check, X, ShieldAlert, Edit2, Save, CornerDownRight } from 'lucide-react'
-import { $approvals, $approvalsLoading, $approvalsError, handleApprove, handleReject } from '../../store/approvals'
+import { $approvals, $approvalsLoading, $approvalsError, $approvalSubmittingIds, handleApprove, handleReject } from '../../store/approvals'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 
@@ -14,6 +14,7 @@ export function ApprovalsView() {
   const approvals = useStore($approvals)
   const loading = useStore($approvalsLoading)
   const error = useStore($approvalsError)
+  const submittingIds = useStore($approvalSubmittingIds)
 
   // Track inline edits per approval row
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -79,6 +80,7 @@ export function ApprovalsView() {
             {approvals.map(app => {
               const risk = getRiskLevel(app.action_type, app.payload)
               const isEmail = app.action_type === 'send_email' || app.action_type === 'create_draft'
+              const isSubmitting = submittingIds.includes(app.approval_id)
 
               return (
                 <div
@@ -123,9 +125,9 @@ export function ApprovalsView() {
                       <div className="space-y-3">
                         <div className="grid grid-cols-[3rem_1fr] text-xs gap-1">
                           <span className="text-(--ui-text-tertiary) font-semibold">To:</span>
-                          <span className="text-foreground select-text">{app.payload.to}</span>
+                          <span className="text-foreground select-text">{app.payload.to || '(not set)'}</span>
                           <span className="text-(--ui-text-tertiary) font-semibold">Subject:</span>
-                          <span className="text-foreground select-text font-medium">{app.payload.subject}</span>
+                          <span className="text-foreground select-text font-medium">{app.payload.subject || '(no subject)'}</span>
                         </div>
 
                         {/* Email Body Draft Text */}
@@ -169,13 +171,13 @@ export function ApprovalsView() {
                       <div className="space-y-2 text-xs">
                         <div className="grid grid-cols-[6rem_1fr] gap-1">
                           <span className="text-(--ui-text-tertiary) font-semibold">Summary:</span>
-                          <span className="text-foreground font-medium">{app.payload.summary}</span>
+                          <span className="text-foreground font-medium">{app.payload.title || app.payload.summary || '(untitled)'}</span>
                           <span className="text-(--ui-text-tertiary) font-semibold">Start Time:</span>
-                          <span className="text-foreground font-mono">{app.payload.start_time || app.payload.start}</span>
+                          <span className="text-foreground font-mono">{app.payload.start_iso || app.payload.start_time || app.payload.start || '—'}</span>
                           <span className="text-(--ui-text-tertiary) font-semibold">End Time:</span>
-                          <span className="text-foreground font-mono">{app.payload.end_time || app.payload.end}</span>
+                          <span className="text-foreground font-mono">{app.payload.end_iso || app.payload.end_time || app.payload.end || '—'}</span>
                           <span className="text-(--ui-text-tertiary) font-semibold">Attendees:</span>
-                          <span className="text-foreground">{(app.payload.attendees || []).join(', ')}</span>
+                          <span className="text-foreground">{(app.payload.attendees || []).join(', ') || 'None'}</span>
                         </div>
                       </div>
                     )}
@@ -185,6 +187,7 @@ export function ApprovalsView() {
                   <div className="flex justify-end gap-2 bg-(--ui-bg-sidebar) px-4 py-2 border-t border-(--ui-stroke-tertiary)">
                     <Button
                       onClick={() => handleReject(app.approval_id)}
+                      disabled={isSubmitting}
                       variant="ghost"
                       size="sm"
                       className="text-(--ui-red) hover:bg-(--ui-red)/10"
@@ -194,11 +197,12 @@ export function ApprovalsView() {
                     </Button>
                     <Button
                       onClick={() => handleApprove(app.approval_id)}
+                      disabled={isSubmitting}
                       size="sm"
                       className="bg-[var(--ui-green)] hover:brightness-110 text-white"
                     >
                       <Check className="size-3.5" />
-                      Approve & Execute
+                      {isSubmitting ? 'Executing...' : 'Approve & Execute'}
                     </Button>
                   </div>
                 </div>

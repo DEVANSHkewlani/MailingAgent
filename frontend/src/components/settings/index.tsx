@@ -20,7 +20,14 @@ interface SettingsViewProps {
 type SettingsTab = 'providers' | 'appearance' | 'permissions' | 'style' | 'about'
 
 export function SettingsView({ onClose }: SettingsViewProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('appearance')
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    const saved = localStorage.getItem('open_settings_on_load');
+    if (saved) {
+      localStorage.removeItem('open_settings_on_load');
+      return saved as SettingsTab;
+    }
+    return 'appearance';
+  })
 
   return (
     <OverlayView onClose={onClose} closeLabel="Close Settings">

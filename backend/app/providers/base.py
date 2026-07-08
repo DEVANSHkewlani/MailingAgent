@@ -39,7 +39,7 @@ class MailProvider(ABC):
         pass
 
     @abstractmethod
-    def create_draft(self, thread_id: str, html_body: str, subject: Optional[str]) -> Draft:
+    def create_draft(self, thread_id: str, html_body: str, subject: Optional[str], to: Optional[str] = None) -> Draft:
         pass
 
     @abstractmethod

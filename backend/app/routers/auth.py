@@ -57,3 +57,31 @@ async def auth_status(user_id: str):
         user_uuid
     )
     return {"connected": row is not None}
+
+
+@router.get("/profile")
+async def auth_profile(user_id: str):
+    """Return the connected Google profile metadata shown in Settings."""
+    from app.db.session import get_db
+    from uuid import UUID
+
+    db = get_db()
+    user_uuid = UUID(user_id)
+    row = await db.fetchrow(
+        "SELECT u.email, u.display_name, oc.provider, oc.scopes, oc.expires_at, oc.created_at "
+        "FROM users u LEFT JOIN oauth_credentials oc ON oc.user_id = u.id AND oc.provider = 'google' "
+        "WHERE u.id = $1",
+        user_uuid,
+    )
+    if not row:
+        return {"connected": False, "user_id": user_id}
+    return {
+        "connected": row["provider"] is not None,
+        "user_id": user_id,
+        "email": row["email"],
+        "display_name": row["display_name"],
+        "provider": row["provider"],
+        "scopes": row["scopes"] or [],
+        "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
+        "connected_at": row["created_at"].isoformat() if row["created_at"] else None,
+    }

@@ -53,9 +53,10 @@ class RowObject:
         self._record = record
 
     def __getattr__(self, name):
-        if name in self._record:
+        try:
             return self._record[name]
-        raise AttributeError(f"'RowObject' has no attribute '{name}'")
+        except KeyError:
+            raise AttributeError(f"'RowObject' has no attribute '{name}'")
 
     def __getitem__(self, key):
         if isinstance(key, int):

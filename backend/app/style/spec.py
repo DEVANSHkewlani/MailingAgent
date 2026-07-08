@@ -1,6 +1,6 @@
 from typing import Literal, Optional
 from pydantic import BaseModel
-from app.agents.llm_adapter import Anthropic
+from app.agents.llm_adapter import GroqClient
 from app.config import settings
 
 # Initialize client placeholder removed (initialized inside function).
@@ -29,10 +29,10 @@ def parse_style_instruction(instruction: str, groq_api_key: str = "") -> StyleSp
     if not has_groq:
         return StyleSpec()
 
-    client = Anthropic(api_key=groq_api_key)
+    client = GroqClient(api_key=groq_api_key)
 
     response = client.messages.create(
-        model="claude-3-5-sonnet-20241022",
+        model="llama-3.3-70b-versatile",
         max_tokens=300,
         system="Extract formatting instructions into the StyleSpec schema. "
                "If a field isn't mentioned, omit it (defaults apply). Only extract "

@@ -1,5 +1,5 @@
 from typing import Optional
-from app.agents.llm_adapter import Anthropic
+from app.agents.llm_adapter import GroqClient
 from app.config import settings
 from app.db.session import get_db
 from app.agents.state import MailAgentState
@@ -37,9 +37,9 @@ def classify_with_llm_batch(emails: list[dict], groq_api_key: str) -> list[dict]
         return [{"index": i, "category": "action_needed", "confidence": 0.9} for i in range(len(emails))]
 
     try:
-        client = Anthropic(api_key=groq_api_key)
+        client = GroqClient(api_key=groq_api_key)
         response = client.messages.create(
-            model="claude-3-5-haiku-20241022",
+            model="llama-3.3-70b-versatile",
             max_tokens=1024,
             messages=[{
                 "role": "user",

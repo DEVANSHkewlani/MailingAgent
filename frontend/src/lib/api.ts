@@ -11,6 +11,7 @@ export interface MessageInput {
 
 export interface Approval {
   approval_id: string
+  conversation_id?: string | null
   action_type: string
   payload: any
   agent_reasoning: string
@@ -141,4 +142,94 @@ export async function checkGoogleAuthStatus(userId: string): Promise<boolean> {
   return !!data.connected
 }
 
+export interface GoogleProfile {
+  connected: boolean
+  user_id: string
+  email?: string
+  display_name?: string
+  provider?: string
+  scopes?: string[]
+  expires_at?: string | null
+  connected_at?: string | null
+}
+
+export async function fetchGoogleProfile(userId: string): Promise<GoogleProfile> {
+  const response = await fetch(`${API_BASE_URL}/auth/profile?user_id=${encodeURIComponent(userId)}`)
+  if (!response.ok) {
+    throw new Error(await response.text())
+  }
+  return response.json()
+}
+
+export interface CronJob {
+  id: string
+  user_id: string
+  conversation_id?: string | null
+  name?: string | null
+  prompt: string
+  schedule_type: 'interval_minutes' | 'daily'
+  schedule_value: string
+  enabled: boolean
+  state: string
+  last_run_at?: string | null
+  next_run_at?: string | null
+  last_error?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export async function fetchCronJobs(userId: string): Promise<CronJob[]> {
+  const response = await fetch(`${API_BASE_URL}/cron?user_id=${encodeURIComponent(userId)}`)
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function createCronJob(payload: {
+  user_id: string
+  name?: string
+  prompt: string
+  schedule_type: 'interval_minutes' | 'daily'
+  schedule_value: string
+}): Promise<CronJob> {
+  const response = await fetch(`${API_BASE_URL}/cron`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function updateCronJob(jobId: string, payload: Partial<CronJob>): Promise<CronJob> {
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function pauseCronJob(jobId: string): Promise<CronJob> {
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/pause`, { method: 'POST' })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function resumeCronJob(jobId: string): Promise<CronJob> {
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/resume`, { method: 'POST' })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function triggerCronJob(jobId: string): Promise<any> {
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/trigger`, { method: 'POST' })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function deleteCronJob(jobId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(await response.text())
+}
 

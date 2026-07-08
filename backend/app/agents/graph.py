@@ -9,11 +9,12 @@ from app.agents.summarizer import summarizer_agent_node
 from app.agents.drafter import drafter_agent_node
 from app.agents.scheduler import scheduler_agent_node
 from app.agents.reminder import reminder_agent_node
+from app.agents.cron_agent import cron_agent_node
 from app.permissions.policy import permission_gate_node, needs_human_approval
 from app.agents.executor import tool_executor_node
 from app.agents.aggregator import aggregator_node
 
-WORKER_NODES = ["reader", "categorizer", "summarizer", "drafter", "scheduler", "reminder"]
+WORKER_NODES = ["reader", "categorizer", "summarizer", "drafter", "scheduler", "reminder", "cron_manager"]
 
 def route_from_reader(state: MailAgentState) -> list[str]:
     """
@@ -34,6 +35,7 @@ def build_graph(checkpointer):
     graph.add_node("drafter", drafter_agent_node)
     graph.add_node("scheduler", scheduler_agent_node)
     graph.add_node("reminder", reminder_agent_node)
+    graph.add_node("cron_manager", cron_agent_node)
     graph.add_node("permission_gate", permission_gate_node)
     graph.add_node("executor", tool_executor_node)
     graph.add_node("aggregator", aggregator_node)
@@ -53,12 +55,13 @@ def build_graph(checkpointer):
             "drafter": "drafter",
             "scheduler": "scheduler",
             "reminder": "reminder",
+            "cron_manager": "cron_manager",
             "permission_gate": "permission_gate"
         }
     )
 
     # Non-reader workers converge on permission_gate.
-    non_reader_workers = ["categorizer", "summarizer", "drafter", "scheduler", "reminder"]
+    non_reader_workers = ["categorizer", "summarizer", "drafter", "scheduler", "reminder", "cron_manager"]
     for worker in non_reader_workers:
         graph.add_edge(worker, "permission_gate")
 

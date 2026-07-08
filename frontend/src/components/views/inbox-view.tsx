@@ -15,6 +15,31 @@ interface EmailItem {
   unread: boolean
 }
 
+/**
+ * Format an ISO timestamp to a user-friendly relative or localized string.
+ * Returns "2h ago", "Yesterday 3:45 PM", "Jul 3, 10:00 AM", etc.
+ */
+function formatEmailTime(isoString: string): string {
+  if (!isoString) return ''
+  try {
+    const date = new Date(isoString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays === 1) return `Yesterday ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    if (diffDays < 7) return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return isoString
+  }
+}
+
 export function InboxView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null)
@@ -72,7 +97,7 @@ export function InboxView() {
             </h3>
             <div className="mt-2 flex items-center justify-between text-xs text-(--ui-text-secondary)">
               <span>From: <strong className="text-foreground">{selectedEmail.from}</strong></span>
-              <span className="text-(--ui-text-tertiary) font-mono">{selectedEmail.time}</span>
+              <span className="text-(--ui-text-tertiary) font-mono">{formatEmailTime(selectedEmail.time)}</span>
             </div>
           </div>
 
@@ -146,7 +171,7 @@ export function InboxView() {
                     <span className={`font-bold ${email.unread ? 'text-primary' : 'text-(--ui-text-secondary)'}`}>
                       {email.from}
                     </span>
-                    <span className="text-(--ui-text-tertiary)">{email.time}</span>
+                    <span className="text-(--ui-text-tertiary)">{formatEmailTime(email.time)}</span>
                   </div>
                   <h4 className={`text-xs truncate ${email.unread ? 'font-bold text-foreground' : 'text-(--ui-text-secondary)'}`}>
                     {email.subject}

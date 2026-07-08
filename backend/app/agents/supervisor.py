@@ -1,4 +1,4 @@
-from app.agents.llm_adapter import Anthropic
+from app.agents.llm_adapter import GroqClient
 from app.config import settings
 from app.agents.state import MailAgentState
 
@@ -15,13 +15,43 @@ Available workers:
 - drafter: write a reply draft (task can be natural language with tone/style)
 - scheduler: detect meeting intent, create calendar events (task can be natural language)
 - reminder: create follow-up reminders (task can be natural language)
+- cron_manager: create or register periodic automated tasks or cron jobs (task can be natural language, e.g. 'Sync emails and alert me every 10 minutes')
 
 Return a JSON plan: a list of {"worker": "<name>", "task": "<specific instruction>"}. 
 Only include workers actually needed for this instruction.
-For "sync my mails/emails/inbox" type requests, use reader with query "in:inbox newer_than:7d" and categorizer."""
+For "sync my mails/emails/inbox" type requests, use reader with query "in:inbox newer_than:7d" and categorizer.
+CRITICAL: If the user's instruction asks to reply, draft, summarize, categorise, or check specific emails/threads, you MUST ALWAYS include the `reader` worker in the plan first to fetch the target emails (e.g. using 'from:github' or 'subject:alert' as the reader task query). Do not assume emails are already loaded in state context."""
+
+
+def fallback_plan(instruction: str) -> list[dict]:
+    lower = instruction.lower()
+    plan: list[dict] = []
+    
+    # Check for cron jobs first
+    if any(word in lower for word in ["cron", "periodically", "every", "hourly", "daily", "weekly"]):
+        plan.append({"worker": "cron_manager", "task": instruction})
+        return plan
+
+    needs_mail = any(word in lower for word in ["email", "mail", "inbox", "reply", "draft", "summarize", "summarise", "categorize", "categorise"])
+    if needs_mail:
+        query = "in:inbox newer_than:7d"
+        if "unread" in lower:
+            query = "is:unread in:inbox"
+        plan.append({"worker": "reader", "task": query})
+    if any(word in lower for word in ["reply", "draft", "send", "mail"]):
+        plan.append({"worker": "drafter", "task": instruction})
+    if any(word in lower for word in ["summarize", "summarise", "summary"]):
+        plan.append({"worker": "summarizer", "task": instruction})
+    if any(word in lower for word in ["categorize", "categorise", "label", "classify"]):
+        plan.append({"worker": "categorizer", "task": instruction})
+    if any(word in lower for word in ["calendar", "meeting", "schedule", "event", "invite"]):
+        plan.append({"worker": "scheduler", "task": instruction})
+    if any(word in lower for word in ["remind", "follow up", "follow-up"]):
+        plan.append({"worker": "reminder", "task": instruction})
+    return plan or [{"worker": "reader", "task": "in:inbox newer_than:7d"}]
 
 def supervisor_node(state: MailAgentState) -> dict:
-    client = Anthropic(api_key=state.get("groq_api_key"))
+    client = GroqClient(api_key=state.get("groq_api_key"))
     history_text_list = []
     for m in state.get("messages", [])[-20:]:
         if hasattr(m, "type") and hasattr(m, "content"):
@@ -41,16 +71,12 @@ def supervisor_node(state: MailAgentState) -> dict:
     has_groq = (state.get("groq_api_key") and len(state.get("groq_api_key")) > 10) or os.getenv("GROQ_API_KEY")
     
     if not has_groq:
-        # Return a static plan for testing/stubbing when no Groq key is present
-        print("Warning: Groq API Key is not set. Returning stub plan.")
-        return {"plan": [
-            {"worker": "reader", "task": "in:inbox newer_than:7d"},
-            {"worker": "categorizer", "task": "Categorize these emails"}
-        ]}
+        print("Warning: Groq API Key is not set. Returning deterministic fallback plan.")
+        return {"plan": fallback_plan(state["instruction"])}
 
     try:
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",  # Model name is ignored by adapter; uses Groq
+            model="llama-3.3-70b-versatile",
             max_tokens=1024,
             system=SUPERVISOR_SYSTEM_PROMPT,
             messages=[{
@@ -70,7 +96,8 @@ def supervisor_node(state: MailAgentState) -> dict:
                                 "properties": {
                                     "worker": {"type": "string", "enum": [
                                         "reader", "categorizer", "summarizer",
-                                        "drafter", "scheduler", "reminder"
+                                        "drafter", "scheduler", "reminder",
+                                        "cron_manager"
                                     ]},
                                     "task": {"type": "string"}
                                 },
@@ -103,17 +130,11 @@ def supervisor_node(state: MailAgentState) -> dict:
                 return {"plan": plan}
         
         # Ultimate fallback: return a safe default plan
-        print("Supervisor: Could not parse LLM response, using default plan.")
-        return {"plan": [
-            {"worker": "reader", "task": "in:inbox newer_than:7d"},
-            {"worker": "categorizer", "task": "Categorize these emails"}
-        ]}
+        print("Supervisor: Could not parse LLM response, using fallback plan.")
+        return {"plan": fallback_plan(state["instruction"])}
     except Exception as e:
-        print(f"Supervisor: LLM call failed ({e}), using default plan.")
-        return {"plan": [
-            {"worker": "reader", "task": "in:inbox newer_than:7d"},
-            {"worker": "categorizer", "task": "Categorize these emails"}
-        ]}
+        print(f"Supervisor: LLM call failed ({e}), using fallback plan.")
+        return {"plan": fallback_plan(state["instruction"])}
 
 
 def route_to_workers(state: MailAgentState) -> list[str]:

@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS drafts (
 CREATE TABLE IF NOT EXISTS approval_queue (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
     action_type TEXT NOT NULL,
     resource_id TEXT NOT NULL,
     payload JSONB NOT NULL,
@@ -128,7 +129,10 @@ CREATE TABLE IF NOT EXISTS approval_queue (
     created_at TIMESTAMPTZ DEFAULT now(),
     resolved_at TIMESTAMPTZ
 );
+ALTER TABLE IF EXISTS approval_queue
+    ADD COLUMN IF NOT EXISTS conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_approval_queue_status ON approval_queue(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_approval_queue_conversation ON approval_queue(conversation_id);
 
 CREATE TABLE IF NOT EXISTS permission_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -162,6 +166,39 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     source_thread_id TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- ---------- Cron jobs ----------
+
+CREATE TABLE IF NOT EXISTS cron_jobs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+    name TEXT,
+    prompt TEXT NOT NULL,
+    schedule_type TEXT NOT NULL CHECK (schedule_type IN ('interval_minutes','daily')),
+    schedule_value TEXT NOT NULL,
+    enabled BOOLEAN DEFAULT true,
+    state TEXT DEFAULT 'scheduled' CHECK (state IN ('scheduled','running','paused','failed','disabled')),
+    last_run_at TIMESTAMPTZ,
+    next_run_at TIMESTAMPTZ,
+    last_error TEXT,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_cron_jobs_user ON cron_jobs(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cron_jobs_due ON cron_jobs(enabled, next_run_at);
+
+CREATE TABLE IF NOT EXISTS cron_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    job_id UUID REFERENCES cron_jobs(id) ON DELETE CASCADE,
+    conversation_id UUID REFERENCES conversations(id) ON DELETE SET NULL,
+    status TEXT NOT NULL CHECK (status IN ('running','completed','failed')),
+    output TEXT,
+    error TEXT,
+    started_at TIMESTAMPTZ DEFAULT now(),
+    finished_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_cron_runs_job ON cron_runs(job_id, started_at DESC);
 
 -- ---------- Audit ----------
 

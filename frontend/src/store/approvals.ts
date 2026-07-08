@@ -9,13 +9,21 @@ import { fetchApprovals, approveAction, rejectAction, type Approval } from '../l
 export const $approvals = atom<Approval[]>([])
 export const $approvalsLoading = atom<boolean>(false)
 export const $approvalsError = atom<string | null>(null)
+export const $approvalSubmittingIds = atom<string[]>([])
+
+function mergeApprovals(existing: Approval[], incoming: Approval[]): Approval[] {
+  const byId = new Map<string, Approval>()
+  for (const app of existing) byId.set(app.approval_id, app)
+  for (const app of incoming) byId.set(app.approval_id, app)
+  return Array.from(byId.values())
+}
 
 export async function loadPendingApprovals(userId: string) {
   $approvalsLoading.set(true)
   $approvalsError.set(null)
   try {
     const list = await fetchApprovals(userId, 'pending')
-    $approvals.set(list)
+    $approvals.set(mergeApprovals([], list))
   } catch (err: any) {
     $approvalsError.set(err.message || 'Failed to fetch approvals')
   } finally {
@@ -24,22 +32,30 @@ export async function loadPendingApprovals(userId: string) {
 }
 
 export async function handleApprove(approvalId: string, editedPayload?: any) {
+  if ($approvalSubmittingIds.get().includes(approvalId)) return
+  $approvalSubmittingIds.set([...$approvalSubmittingIds.get(), approvalId])
   try {
     await approveAction(approvalId, editedPayload)
     // Remove from the local pending queue list on success
     $approvals.set($approvals.get().filter(app => app.approval_id !== approvalId))
   } catch (err: any) {
     alert(`Approval failed: ${err.message}`)
+  } finally {
+    $approvalSubmittingIds.set($approvalSubmittingIds.get().filter(id => id !== approvalId))
   }
 }
 
 export async function handleReject(approvalId: string) {
+  if ($approvalSubmittingIds.get().includes(approvalId)) return
+  $approvalSubmittingIds.set([...$approvalSubmittingIds.get(), approvalId])
   try {
     await rejectAction(approvalId)
     // Remove from the local pending queue list on success
     $approvals.set($approvals.get().filter(app => app.approval_id !== approvalId))
   } catch (err: any) {
     alert(`Rejection failed: ${err.message}`)
+  } finally {
+    $approvalSubmittingIds.set($approvalSubmittingIds.get().filter(id => id !== approvalId))
   }
 }
 
@@ -68,8 +84,7 @@ export function connectApprovalsWebSocket(userId: string) {
           payload: data.action.payload || {},
           agent_reasoning: data.action.reasoning || 'Action intercept',
         }
-        // Append to state
-        $approvals.set([newApproval, ...$approvals.get()])
+        $approvals.set(mergeApprovals($approvals.get(), [newApproval]))
       }
     } catch (e) {
       console.error('Error parsing WebSocket message:', e)

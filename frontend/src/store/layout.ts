@@ -4,7 +4,7 @@
 
 import { atom } from 'nanostores'
 
-export type AppView = 'chat' | 'approvals' | 'calendar'
+export type AppView = 'chat' | 'approvals' | 'calendar' | 'cron'
 
 export const $sidebarOpen = atom<boolean>(true)
 export const $activeView = atom<AppView>('chat')

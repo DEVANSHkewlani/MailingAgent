@@ -1,6 +1,6 @@
 import os
 from app.agents.state import MailAgentState
-from app.agents.llm_adapter import Anthropic
+from app.agents.llm_adapter import GroqClient
 
 AGGREGATOR_SYSTEM_PROMPT = """You are the conversational interface for Mail Agent.
 Your job is to look at the actions performed by the worker agents and write a friendly, professional, and natural response to the user.
@@ -13,6 +13,7 @@ You should:
 5. If calendar events or reminders were created, inform the user about them.
 6. Address any errors gracefully.
 7. Keep the tone helpful, clear, and concise. Format using Markdown.
+8. If a cron job setup is in progress and details (like interval or time) are missing, ask the user to clarify or provide the missing details.
 """
 
 def aggregator_node(state: MailAgentState) -> dict:
@@ -21,13 +22,28 @@ def aggregator_node(state: MailAgentState) -> dict:
     parts = []
     if state.get("email_context"):
         parts.append(f"Found {len(state['email_context'])} matching emails.")
+    if state.get("summaries"):
+        parts.append("\n\n**Thread Summaries:**")
+        for s in state["summaries"]:
+            parts.append(f"- **{s.get('thread_id', 'Thread')}**: {s.get('summary', '')}")
     if state.get("draft_results"):
-        parts.append(f"Created {len(state['draft_results'])} draft(s) — review in Approvals.")
+        parts.append(f"\nCreated {len(state['draft_results'])} draft(s) — review in Approvals & Drafts.")
+        for d in state["draft_results"]:
+            parts.append(f"- Draft for *{d.get('subject', 'unknown')}* (to: {d.get('to', 'recipient')})")
     if state.get("calendar_results"):
-        parts.append(f"Proposed {len(state['calendar_results'])} calendar event(s).")
+        parts.append(f"\nProposed {len(state['calendar_results'])} calendar event(s).")
+        for c in state["calendar_results"]:
+            parts.append(f"- **{c.get('title', 'Event')}** ({c.get('start_iso', '')} → {c.get('end_iso', '')}) — Status: {c.get('status', 'pending')}")
+    
+    cron_tasks = [t for t in state.get("completed_tasks", []) if t.get("agent") == "cron_manager"]
+    if cron_tasks:
+        parts.append(f"\nCron Job Configuration:")
+        for ct in cron_tasks:
+            parts.append(f"- {ct.get('task')} (Status: {ct.get('status')})")
+
     if state.get("errors"):
-        parts.append(f"{len(state['errors'])} item(s) failed.")
-    fallback_summary = " ".join(parts) or "Done."
+        parts.append(f"\n⚠️ {len(state['errors'])} item(s) encountered errors.")
+    fallback_summary = "\n".join(parts) or "Done."
 
     # Check if Groq key is present
     groq_api_key = state.get("groq_api_key", "")
@@ -50,14 +66,17 @@ def aggregator_node(state: MailAgentState) -> dict:
         ],
         "drafts_created": state.get("draft_results", []),
         "calendar_events": state.get("calendar_results", []),
-        "summaries": state.get("summaries", []),
+        "thread_summaries": [
+            f"Thread {s.get('thread_id', '?')}: {s.get('summary', 'No summary')}"
+            for s in state.get("summaries", [])
+        ],
         "errors": state.get("errors", [])
     }
 
     try:
-        client = Anthropic(api_key=groq_api_key)
+        client = GroqClient(api_key=groq_api_key)
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="llama-3.3-70b-versatile",
             max_tokens=1024,
             system=AGGREGATOR_SYSTEM_PROMPT,
             messages=[{

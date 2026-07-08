@@ -239,8 +239,42 @@ def cancel_event(event_id: str, confirmation_token: str) -> Dict[str, Any]:
     return {"event_id": event_id, "status": "cancelled"}
 
 
+class CreateCronJobInput(BaseModel):
+    prompt: str = Field(..., description="The instruction/action to execute periodically, e.g. 'Sync unread emails and summarize them'")
+    schedule_type: str = Field(..., description="Interval or daily schedule type. Must be 'interval_minutes' or 'daily'")
+    schedule_value: str = Field(..., description="Schedule value: minutes (e.g. '30') or daily 24h time (e.g. '09:00')")
+    name: Optional[str] = Field(None, description="Optional custom name for this cron job")
+
+@tool("create_cron_job", args_schema=CreateCronJobInput)
+def create_cron_job(prompt: str, schedule_type: str, schedule_value: str, name: Optional[str] = None) -> Dict[str, Any]:
+    """Create a scheduled cron job. Reversible."""
+    from app.db.session import get_db_sync
+    from app.routers.cron import compute_next_run
+    import uuid
+    
+    db = get_db_sync()
+    user_id = db.current_user_id
+    if not user_id:
+        raise ValueError("Database user_id context not set for cron job creation")
+        
+    try:
+        next_run = compute_next_run(schedule_type, schedule_value)
+    except ValueError as exc:
+        raise ValueError(f"Invalid schedule pattern: {str(exc)}")
+        
+    job_name = name or f"Cron: {prompt[:30]}"
+    row = db.execute(
+        "INSERT INTO cron_jobs (user_id, name, prompt, schedule_type, schedule_value, next_run_at) "
+        "VALUES (%s, %s, %s, %s, %s, %s) RETURNING id",
+        (uuid.UUID(str(user_id)), job_name, prompt, schedule_type, schedule_value, next_run)
+    ).fetchone()
+    
+    return {"cron_job_id": str(row[0]), "name": job_name, "status": "created"}
+
+
 ALL_TOOLS = [
     list_emails, get_thread, get_attachment, get_style_profile,
     apply_label, create_draft, update_draft, create_reminder,
-    check_availability, send_email, create_event, update_event, cancel_event
+    check_availability, send_email, create_event, update_event, cancel_event,
+    create_cron_job
 ]

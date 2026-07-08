@@ -3,7 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.session import init_pool
 from app.agents.graph import get_compiled_graph, close_compiled_graph
 from app.notifications.websocket import manager
-from app.routers import chat, approvals, auth
+from app.jobs.cron_scheduler import start_cron_scheduler, stop_cron_scheduler
+from app.routers import chat, approvals, auth, cron
 
 app = FastAPI(
     title="Mail Agent API",
@@ -26,11 +27,13 @@ async def startup_event():
     # Setup database pools and compile LangGraph checkpoints savers
     await init_pool()
     await get_compiled_graph()
+    start_cron_scheduler()
     print("Database pool and checkpointer savers initialized successfully.")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     print("Stopping FastAPI Application...")
+    await stop_cron_scheduler()
     await close_compiled_graph()
     print("Database pool and connection savers closed.")
 
@@ -38,6 +41,7 @@ async def shutdown_event():
 app.include_router(chat.router)
 app.include_router(approvals.router)
 app.include_router(auth.router)
+app.include_router(cron.router)
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):

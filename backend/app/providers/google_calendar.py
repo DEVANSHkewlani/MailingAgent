@@ -40,6 +40,7 @@ class GoogleCalendarProvider(CalendarProvider):
                 "start": {"dateTime": start},
                 "end": {"dateTime": end},
                 "attendees": [{"email": a} for a in attendees],
+                "reminders": {"useDefault": False, "overrides": []}
             },
             sendUpdates="all"
         ).execute()
@@ -60,6 +61,8 @@ class GoogleCalendarProvider(CalendarProvider):
             event["end"] = {"dateTime": end}
         if attendees is not None:
             event["attendees"] = [{"email": a} for a in attendees]
+        
+        event["reminders"] = {"useDefault": False, "overrides": []}
             
         result = self.service.events().update(
             calendarId="primary",

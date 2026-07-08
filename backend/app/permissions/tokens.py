@@ -31,9 +31,11 @@ def verify_token(token: str, action: str, resource: str) -> str:
     if tok_action != action or tok_resource != resource:
         raise PermissionError("Token scope mismatch")
 
+    import uuid
+    approval_uuid = uuid.UUID(approval_id)
     db = get_db_sync()
     row = db.execute(
-        "SELECT status FROM approval_queue WHERE id = %s", (approval_id,)
+        "SELECT status FROM approval_queue WHERE id = %s", (approval_uuid,)
     ).fetchone()
     if row is None or row[0] == "consumed":
         raise PermissionError("Token already used or unknown")
@@ -41,6 +43,6 @@ def verify_token(token: str, action: str, resource: str) -> str:
     # Mark consumed atomically — this IS the idempotency guard (Section 13)
     db.execute(
         "UPDATE approval_queue SET status = 'consumed', resolved_at = now() "
-        "WHERE id = %s AND status != 'consumed'", (approval_id,)
+        "WHERE id = %s AND status != 'consumed'", (approval_uuid,)
     )
     return approval_id

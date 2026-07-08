@@ -12,6 +12,7 @@ import { ChatPanel } from './chat-panel'
 import { InboxView } from './views/inbox-view'
 import { ApprovalsView } from './views/approvals-view'
 import { CalendarView } from './views/calendar-view'
+import { CronJobsView } from './views/cron-jobs-view'
 import { SettingsView } from './settings'
 import { loadConversations } from '../store/chat'
 import { loadPendingApprovals, connectApprovalsWebSocket } from '../store/approvals'
@@ -51,6 +52,10 @@ export function AppShell() {
     loadConversations(userId)
     loadPendingApprovals(userId)
     connectApprovalsWebSocket(userId)
+
+    if (localStorage.getItem('open_settings_on_load')) {
+      $settingsOpen.set(true)
+    }
   }, [userId])
 
   return (
@@ -85,6 +90,7 @@ export function AppShell() {
         
         {activeView === 'approvals' && <ApprovalsView />}
         {activeView === 'calendar' && <CalendarView />}
+        {activeView === 'cron' && <CronJobsView />}
       </main>
 
       {/* Settings Overlay Dialog */}

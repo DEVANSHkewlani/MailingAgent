@@ -1,6 +1,6 @@
 from typing import List, Dict, Any
 from app.agents.state import MailAgentState
-from app.agents.llm_adapter import Anthropic
+from app.agents.llm_adapter import GroqClient
 from app.config import settings
 
 # Initialize client placeholder removed (initialized inside node).
@@ -18,7 +18,7 @@ async def reminder_agent_node(state: MailAgentState) -> dict:
     and appends a 'create_reminder' action (which will be auto-approved).
     """
     print("Reminder Agent: Starting...")
-    client = Anthropic(api_key=state.get("groq_api_key"))
+    client = GroqClient(api_key=state.get("groq_api_key"))
     
     reminder_tasks = [t for t in state.get("plan", []) if t.get("worker") == "reminder"]
     pending_approvals = []
@@ -42,7 +42,7 @@ async def reminder_agent_node(state: MailAgentState) -> dict:
         else:
             try:
                 response = client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
+                    model="llama-3.3-70b-versatile",
                     max_tokens=400,
                     system=REMINDER_SYSTEM_PROMPT,
                     messages=[{"role": "user", "content": f"Extract details from: {task_text}"}],
@@ -62,7 +62,7 @@ async def reminder_agent_node(state: MailAgentState) -> dict:
                 )
                 extracted = next(b.input for b in response.content if b.type == "tool_use")
             except Exception as e:
-                print(f"Reminder Agent: Claude parameter extraction failed: {e}")
+                print(f"Reminder Agent: Parameter extraction failed: {e}")
                 errors.append({"task": task, "error": str(e)})
                 continue
 
