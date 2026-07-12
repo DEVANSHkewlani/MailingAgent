@@ -54,10 +54,10 @@ export function OverlayNavItem({
   return (
     <button
       className={cn(
-        'flex h-7 w-full items-center justify-start gap-2 rounded-md border px-2 text-left text-[0.8125rem] font-normal transition-colors',
+        'flex h-7 w-full items-center justify-start gap-2 rounded-sm px-2 text-left text-[0.8125rem] font-normal transition-colors',
         active
-          ? 'border-(--ui-stroke-tertiary) bg-(--ui-bg-tertiary) text-foreground'
-          : 'border-transparent bg-transparent text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground',
+          ? 'bg-(--ui-bg-tertiary) text-foreground font-semibold'
+          : 'bg-transparent text-(--ui-text-secondary) hover:bg-(--ui-bg-quaternary) hover:text-foreground',
       )}
       onClick={onClick}
       type="button"

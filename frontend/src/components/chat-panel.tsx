@@ -6,7 +6,7 @@
 
 import { useRef, useEffect } from 'react'
 import { useStore } from '@nanostores/react'
-import { $messages, handleSendMessage } from '../store/chat'
+import { $messages, handleSendMessage, $chatSending } from '../store/chat'
 import { $userId } from '../store/auth'
 import { Composer } from './composer'
 import { cn } from '../lib/utils'
@@ -14,12 +14,13 @@ import { cn } from '../lib/utils'
 export function ChatPanel() {
   const messages = useStore($messages)
   const userId = useStore($userId)
+  const chatSending = useStore($chatSending)
   const threadEndRef = useRef<HTMLDivElement | null>(null)
 
   // Scroll to bottom on updates
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, chatSending])
 
   const onSend = (text: string) => {
     handleSendMessage(userId, text)
@@ -68,6 +69,17 @@ export function ChatPanel() {
                 </div>
               )
             })}
+            {chatSending && (
+              <div className="flex w-full justify-start animate-fade-in">
+                <div className="bg-(--ui-bg-editor) text-foreground border border-(--ui-stroke-secondary) rounded-xl px-4 py-3.5 shadow-sm">
+                  <div className="flex items-center gap-1.5 py-1">
+                    <span className="w-1.5 h-1.5 bg-(--ui-text-secondary) rounded-full animate-typing-dot" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-(--ui-text-secondary) rounded-full animate-typing-dot" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-(--ui-text-secondary) rounded-full animate-typing-dot" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={threadEndRef} />
           </div>
         )}

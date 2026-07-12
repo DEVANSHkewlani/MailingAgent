@@ -84,6 +84,35 @@ async def list_emails(user_id: str, limit: int = 20):
         for r in rows
     ]
 
+@router.get("/emails/{email_id}/body")
+async def get_email_body(email_id: str, user_id: str):
+    """Retrieve the full text body of an email dynamically from the provider client."""
+    from app.db.session import get_db
+    from uuid import UUID
+    from app.providers.factory import get_mail_provider_async
+    
+    db = get_db()
+    try:
+        email_uuid = UUID(email_id)
+        user_uuid = UUID(user_id)
+    except ValueError:
+        return {"body": "Invalid email ID or user ID format."}
+        
+    row = await db.fetchrow(
+        "SELECT provider_message_id FROM email_cache WHERE id = $1 AND user_id = $2",
+        email_uuid, user_uuid
+    )
+    if not row:
+        return {"body": "Email not found in local cache database."}
+        
+    provider_msg_id = row["provider_message_id"]
+    try:
+        provider = await get_mail_provider_async(user_id)
+        body = provider.get_message_body(provider_msg_id)
+        return {"body": body or "No body content available."}
+    except Exception as e:
+        return {"body": f"Could not retrieve email body: {str(e)}"}
+
 @router.get("/alerts")
 async def list_alerts(user_id: str):
     """Retrieve calendar events and follow-up reminders from database."""
@@ -160,9 +189,24 @@ async def send_message(
     invoke the LangGraph multi-agent core, and save the assistant response.
     """
     from app.agents.llm_adapter import active_groq_key
+    from app.db.session import get_db
+    from uuid import UUID
+    db = get_db()
     
-    # Store headers to thread-safe request context
-    active_groq_key.set(x_groq_api_key or "")
+    db_groq_key = ""
+    try:
+        user_uuid = UUID(payload.user_id)
+        user_row = await db.fetchrow("SELECT groq_api_key FROM users WHERE id = $1", user_uuid)
+        if user_row and user_row["groq_api_key"]:
+            from cryptography.fernet import Fernet
+            from app.config import settings
+            fernet = Fernet(settings.token_encryption_key.encode())
+            db_groq_key = fernet.decrypt(user_row["groq_api_key"].encode()).decode()
+    except Exception as e:
+        print(f"Chat Router: Failed to decrypt user Groq key: {e}")
+
+    api_key_to_use = db_groq_key or x_groq_api_key or ""
+    active_groq_key.set(api_key_to_use)
 
     user_id = payload.user_id
     instruction = payload.instruction
@@ -282,7 +326,7 @@ async def send_message(
                     "calendar_results": ResetList(),
                     "summaries": ResetList(),
                     "errors": ResetList(),
-                    "groq_api_key": x_groq_api_key or ""
+                    "groq_api_key": api_key_to_use
                 },
                 config=config
             )
@@ -293,7 +337,7 @@ async def send_message(
     pending = [a for a in result.get("pending_approvals", []) if a.get("status") != "approved"]
     if pending:
         from app.agents.llm_adapter import GroqClient
-        groq_api_key = x_groq_api_key or ""
+        groq_api_key = api_key_to_use
         has_groq = (groq_api_key and len(groq_api_key) > 10) or os.getenv("GROQ_API_KEY")
         
         if has_groq:

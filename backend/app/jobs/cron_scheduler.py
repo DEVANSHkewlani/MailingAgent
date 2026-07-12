@@ -66,6 +66,17 @@ async def run_cron_job(job_id: str) -> Dict[str, Any]:
     instruction = job["prompt"]
     try:
         await save_message(conversation_id, "user", instruction)
+        db_groq_key = ""
+        try:
+            user_row = await db.fetchrow("SELECT groq_api_key FROM users WHERE id = $1", job["user_id"])
+            if user_row and user_row["groq_api_key"]:
+                from cryptography.fernet import Fernet
+                from app.config import settings
+                fernet = Fernet(settings.token_encryption_key.encode())
+                db_groq_key = fernet.decrypt(user_row["groq_api_key"].encode()).decode()
+        except Exception as e:
+            print(f"Cron Scheduler: Failed to decrypt user Groq key: {e}")
+
         graph = await get_compiled_graph()
         result = await graph.ainvoke(
             {
@@ -82,10 +93,23 @@ async def run_cron_job(job_id: str) -> Dict[str, Any]:
                 "calendar_results": ResetList(),
                 "summaries": ResetList(),
                 "errors": ResetList(),
-                "groq_api_key": os.getenv("GROQ_API_KEY", ""),
+                "groq_api_key": db_groq_key,
+                # Signal to the permission gate to auto-approve all actions.
+                # Cron jobs are unattended — they must never block on human approval.
+                "is_cron": True,
             },
             config={"configurable": {"thread_id": conversation_id}},
         )
+
+        # Detect if the graph returned an interrupt state (shouldn't happen with is_cron=True,
+        # but guard defensively in case a future node raises an interrupt for another reason).
+        if hasattr(result, "__interrupt__") or (
+            isinstance(result, dict) and result.get("__interrupt__")
+        ):
+            raise RuntimeError(
+                "Graph execution was interrupted unexpectedly during a cron run. "
+                "This should not happen when is_cron=True. Check permission_gate_node."
+            )
 
         messages = result.get("messages", [])
         if messages:

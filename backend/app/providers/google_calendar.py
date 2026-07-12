@@ -33,12 +33,20 @@ class GoogleCalendarProvider(CalendarProvider):
         return len(busy) == 0  # True = available
 
     def create_event(self, title: str, start: str, end: str, attendees: List[str]) -> Event:
+        # Ensure the dateTime strings have timezone info for the Google Calendar API.
+        # We always work in UTC; strip any trailing 'Z' and replace with explicit offset
+        # so the API correctly interprets the value regardless of calendar settings.
+        def _to_gc_datetime(iso: str) -> dict:
+            """Return a Google Calendar dateTime dict. Normalises 'Z' suffix to '+00:00'."""
+            normalised = iso.replace("Z", "+00:00") if iso.endswith("Z") else iso
+            return {"dateTime": normalised, "timeZone": "UTC"}
+
         result = self.service.events().insert(
             calendarId="primary",
             body={
                 "summary": title,
-                "start": {"dateTime": start},
-                "end": {"dateTime": end},
+                "start": _to_gc_datetime(start),
+                "end": _to_gc_datetime(end),
                 "attendees": [{"email": a} for a in attendees],
                 "reminders": {"useDefault": False, "overrides": []}
             },
@@ -56,9 +64,11 @@ class GoogleCalendarProvider(CalendarProvider):
         if title:
             event["summary"] = title
         if start:
-            event["start"] = {"dateTime": start}
+            normalised_start = start.replace("Z", "+00:00") if start.endswith("Z") else start
+            event["start"] = {"dateTime": normalised_start, "timeZone": "UTC"}
         if end:
-            event["end"] = {"dateTime": end}
+            normalised_end = end.replace("Z", "+00:00") if end.endswith("Z") else end
+            event["end"] = {"dateTime": normalised_end, "timeZone": "UTC"}
         if attendees is not None:
             event["attendees"] = [{"email": a} for a in attendees]
         

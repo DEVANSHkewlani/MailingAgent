@@ -1,0 +1,16 @@
+{
+  "short_name": "MailAgent",
+  "name": "Mailing Agent - AI Assistant",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": ".",
+  "background_color": "#f8faff",
+  "theme_color": "#0053fd",
+  "display": "standalone",
+  "orientation": "portrait"
+}

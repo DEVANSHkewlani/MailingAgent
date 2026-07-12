@@ -114,7 +114,8 @@ export async function rejectAction(approvalId: string) {
 }
 
 export function getGoogleLoginUrl(userId: string): string {
-  return `${API_BASE_URL}/auth/login?user_id=${encodeURIComponent(userId)}`
+  const frontendUrl = window.location.origin
+  return `${API_BASE_URL}/auth/login?user_id=${encodeURIComponent(userId)}&frontend_url=${encodeURIComponent(frontendUrl)}`
 }
 
 export async function fetchEmails(userId: string): Promise<any[]> {
@@ -231,5 +232,60 @@ export async function triggerCronJob(jobId: string): Promise<any> {
 export async function deleteCronJob(jobId: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/cron/${jobId}`, { method: 'DELETE' })
   if (!response.ok) throw new Error(await response.text())
+}
+
+export interface SMTPSettings {
+  configured: boolean
+  smtp_host: string
+  smtp_port: number
+  smtp_username: string
+  smtp_use_tls: boolean
+  has_password?: boolean
+}
+
+export async function fetchSMTPSettings(userId: string): Promise<SMTPSettings> {
+  const response = await fetch(`${API_BASE_URL}/auth/smtp?user_id=${encodeURIComponent(userId)}`)
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function saveSMTPSettings(payload: {
+  user_id: string
+  smtp_host: string
+  smtp_port: number
+  smtp_username: string
+  smtp_password?: string
+  smtp_use_tls: boolean
+}): Promise<{ status: string, message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/smtp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function fetchEmailBody(userId: string, emailId: string): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/chat/emails/${encodeURIComponent(emailId)}/body?user_id=${encodeURIComponent(userId)}`)
+  if (!response.ok) throw new Error(await response.text())
+  const data = await response.json()
+  return data.body || ""
+}
+
+export async function fetchGroqSettings(userId: string): Promise<{ configured: boolean, groq_api_key: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/groq?user_id=${encodeURIComponent(userId)}`)
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function saveGroqSettings(userId: string, key: string): Promise<{ status: string, message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/groq`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, groq_api_key: key }),
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
 }
 

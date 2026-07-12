@@ -180,8 +180,8 @@ def send_email(draft_id: str, confirmation_token: str) -> Dict[str, Any]:
     from app.permissions.tokens import verify_token
     from app.tools.transactional_send import send_draft_transactionally
     
-    verify_token(confirmation_token, action="send_email", resource=draft_id)
-    return send_draft_transactionally(draft_id)
+    approval_id = verify_token(confirmation_token, action="send_email", resource=draft_id)
+    return send_draft_transactionally(draft_id, approval_id=approval_id)
 
 
 class CreateEventInput(BaseModel):

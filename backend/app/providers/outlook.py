@@ -36,11 +36,14 @@ class OutlookProvider(MailProvider):
             })
         return Thread(id=thread_id, messages=messages)
 
-    def create_draft(self, thread_id: str, html_body: str, subject: Optional[str]) -> Draft:
+    def create_draft(self, thread_id: str, html_body: str, subject: Optional[str], to: Optional[str] = None) -> Draft:
+        payload = {"subject": subject or "", "body": {"contentType": "HTML", "content": html_body}}
+        if to:
+            payload["toRecipients"] = [{"emailAddress": {"address": to}}]
         resp = requests.post(
             f"{GRAPH_BASE}/me/messages",
             headers=self.headers,
-            json={"subject": subject or "", "body": {"contentType": "HTML", "content": html_body}}
+            json=payload
         ).json()
         return Draft(id=resp["id"], thread_id=thread_id)
 
@@ -81,3 +84,13 @@ class OutlookProvider(MailProvider):
             headers=self.headers
         )
         return resp.status_code == 404
+
+    def delete_draft(self, draft_id: str) -> None:
+        try:
+            requests.delete(
+                f"{GRAPH_BASE}/me/messages/{draft_id}",
+                headers=self.headers
+            )
+            print(f"OutlookProvider: Discarded draft {draft_id} successfully.")
+        except Exception as e:
+            print(f"OutlookProvider: Warning - failed to delete draft {draft_id}: {e}")

@@ -1,6 +1,6 @@
 from app.agents.llm_adapter import GroqClient
 from app.config import settings
-from app.agents.state import MailAgentState
+from app.agents.state import MailAgentState, ResetList
 
 # Instantiate client placeholder removed (initialized inside node).
 
@@ -20,10 +20,12 @@ Available workers:
 Return a JSON plan: a list of {"worker": "<name>", "task": "<specific instruction>"}. 
 Only include workers actually needed for this instruction.
 For "sync my mails/emails/inbox" type requests, use reader with query "in:inbox newer_than:7d" and categorizer.
-CRITICAL: If the user's instruction asks to reply, draft, summarize, categorise, or check specific emails/threads, you MUST ALWAYS include the `reader` worker in the plan first to fetch the target emails (e.g. using 'from:github' or 'subject:alert' as the reader task query). Do not assume emails are already loaded in state context."""
+CRITICAL: If the user's instruction asks to reply, draft, summarize, categorise, or check specific existing emails/threads, you MUST ALWAYS include the `reader` worker in the plan first to fetch the target emails (e.g. using 'from:github' or 'subject:alert' as the reader task query). Do not assume emails are already loaded in state context.
+CRITICAL: If the user is asking to draft/write a NEW standalone email to a specific person or email address (e.g., 'Draft a mail to test@gmail.com...', 'Write an email to...'), do NOT include the `reader` worker. Instead, include ONLY the `drafter` worker. Do not try to read or fetch emails when writing a brand new message."""
 
 
 def fallback_plan(instruction: str) -> list[dict]:
+    import re
     lower = instruction.lower()
     plan: list[dict] = []
     
@@ -32,17 +34,20 @@ def fallback_plan(instruction: str) -> list[dict]:
         plan.append({"worker": "cron_manager", "task": instruction})
         return plan
 
+    has_email_address = bool(re.search(r'[\w\.-]+@[\w\.-]+\.\w+', instruction))
+    is_new_email = has_email_address and any(word in lower for word in ["draft", "write", "send", "compose", "mail", "email"])
+
     needs_mail = any(word in lower for word in ["email", "mail", "inbox", "reply", "draft", "summarize", "summarise", "categorize", "categorise"])
-    if needs_mail:
+    if needs_mail and not is_new_email:
         query = "in:inbox newer_than:7d"
         if "unread" in lower:
             query = "is:unread in:inbox"
         plan.append({"worker": "reader", "task": query})
-    if any(word in lower for word in ["reply", "draft", "send", "mail"]):
+    if any(word in lower for word in ["reply", "draft", "send", "mail", "email", "compose", "write"]):
         plan.append({"worker": "drafter", "task": instruction})
     if any(word in lower for word in ["summarize", "summarise", "summary"]):
         plan.append({"worker": "summarizer", "task": instruction})
-    if any(word in lower for word in ["categorize", "categorise", "label", "classify"]):
+    if any(word in lower for word in ["categorize", "categorise", "label", "classify"]) and not is_new_email:
         plan.append({"worker": "categorizer", "task": instruction})
     if any(word in lower for word in ["calendar", "meeting", "schedule", "event", "invite"]):
         plan.append({"worker": "scheduler", "task": instruction})
@@ -70,9 +75,22 @@ def supervisor_node(state: MailAgentState) -> dict:
     import os
     has_groq = (state.get("groq_api_key") and len(state.get("groq_api_key")) > 10) or os.getenv("GROQ_API_KEY")
     
+    def make_response(plan):
+        return {
+            "plan": plan,
+            "active_tasks": ResetList(),
+            "completed_tasks": ResetList(),
+            "pending_approvals": ResetList(),
+            "email_context": ResetList(),
+            "draft_results": ResetList(),
+            "calendar_results": ResetList(),
+            "summaries": ResetList(),
+            "errors": ResetList(),
+        }
+
     if not has_groq:
         print("Warning: Groq API Key is not set. Returning deterministic fallback plan.")
-        return {"plan": fallback_plan(state["instruction"])}
+        return make_response(fallback_plan(state["instruction"]))
 
     try:
         response = client.messages.create(
@@ -115,7 +133,7 @@ def supervisor_node(state: MailAgentState) -> dict:
         tool_blocks = [b for b in response.content if b.type == "tool_use"]
         if tool_blocks:
             plan = tool_blocks[0].input["plan"]
-            return {"plan": plan}
+            return make_response(plan)
         
         # Fallback: try to parse JSON from text response
         import json
@@ -127,14 +145,14 @@ def supervisor_node(state: MailAgentState) -> dict:
             json_match = re.search(r'\[.*\]', text, re.DOTALL)
             if json_match:
                 plan = json.loads(json_match.group())
-                return {"plan": plan}
+                return make_response(plan)
         
         # Ultimate fallback: return a safe default plan
         print("Supervisor: Could not parse LLM response, using fallback plan.")
-        return {"plan": fallback_plan(state["instruction"])}
+        return make_response(fallback_plan(state["instruction"]))
     except Exception as e:
         print(f"Supervisor: LLM call failed ({e}), using fallback plan.")
-        return {"plan": fallback_plan(state["instruction"])}
+        return make_response(fallback_plan(state["instruction"]))
 
 
 def route_to_workers(state: MailAgentState) -> list[str]:

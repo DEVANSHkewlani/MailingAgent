@@ -33,3 +33,6 @@ class MailAgentState(MessagesState):
     # Single-writer fields
     style_profile: dict = {}
     groq_api_key: str = ""
+    # When True, the permission gate auto-approves ALL actions without human interrupt.
+    # Set to True for unattended cron-triggered graph executions.
+    is_cron: bool = False

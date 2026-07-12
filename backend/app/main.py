@@ -26,6 +26,21 @@ async def startup_event():
     print("Starting FastAPI Application...")
     # Setup database pools and compile LangGraph checkpoints savers
     await init_pool()
+    
+    # Ensure users table has user-specific SMTP settings columns
+    from app.db.session import get_db
+    db = get_db()
+    try:
+        await db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS smtp_host TEXT")
+        await db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS smtp_port INT")
+        await db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS smtp_username TEXT")
+        await db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS smtp_password TEXT")
+        await db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS smtp_use_tls BOOLEAN DEFAULT true")
+        await db.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS groq_api_key TEXT")
+        print("FastAPI Startup: Ensured users table has SMTP and Groq settings columns.")
+    except Exception as e:
+        print(f"FastAPI Startup Warning: Failed to alter users table: {e}")
+
     await get_compiled_graph()
     start_cron_scheduler()
     print("Database pool and checkpointer savers initialized successfully.")

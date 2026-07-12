@@ -8,17 +8,17 @@ from app.config import settings
 
 # Initialize client placeholder removed (initialized inside node).
 
-DRAFTER_SYSTEM_PROMPT = """You are the Drafter Agent for Mail Agent. Your task is to write a reply
-to the given email thread. 
+DRAFTER_SYSTEM_PROMPT = """You are the Drafter Agent. Write a reply to the given email thread.
 
 Analyze the email context and the user's specific instructions to compose a contextual reply.
 
-CRITICAL RULES:
-1. The response MUST contain ONLY the actual email body text to be sent to the recipient.
-2. Do NOT write any summaries, notes, reasoning, commentary, or preambles.
-3. Do NOT include any markdown headings (e.g. '### Response', '### Summary', '### Reply').
-4. Follow the user's request exactly (e.g. if they say write a single line, write only that single line).
-5. Write the email body in Markdown format. Do not write raw HTML.
+CRITICAL RULES FOR HUMANNESS (NO ROBOTIC AI TOUCH):
+1. Write like a normal, busy person would type directly on a keyboard.
+2. Avoid robotic greetings/pleasantries (e.g. NEVER write "I hope this email finds you well", "Hope you are having a great week", "Please let me know if you have questions"). Go straight to the point.
+3. Be brief, concise, and direct. Keep paragraphs short (usually 1-3 sentences total).
+4. If the user provided exact wording, statements, or instructions on what to say, use them directly, keeping the exact format and content.
+5. The response MUST contain ONLY the actual email body text to be sent. Do NOT write notes, reasoning, commentary, preambles, or markdown headings.
+6. Write the email body in plain Markdown format. Do not write raw HTML.
 """
 
 async def drafter_agent_node(state: MailAgentState) -> dict:
@@ -60,11 +60,6 @@ async def drafter_agent_node(state: MailAgentState) -> dict:
     import asyncio
     style_details = await asyncio.to_thread(get_style_profile_impl, style_spec.signature_profile_id)
 
-    emails = state.get("email_context", [])
-    if not emails:
-        print("Drafter Agent: No emails found in context to draft replies for.")
-        errors.append({"error": "No emails found in context to draft replies for. Please fetch or sync emails first."})
-
     import os
     has_groq = (state.get("groq_api_key") and len(state.get("groq_api_key")) > 10) or os.getenv("GROQ_API_KEY")
     if not has_groq:
@@ -75,6 +70,115 @@ async def drafter_agent_node(state: MailAgentState) -> dict:
                 "error": "Drafting requires a Groq API key. Add it in Settings > Email Connections, then ask me to draft again."
             }],
             "completed_tasks": [{"agent": "drafter", "task": "Draft skipped because no model key is configured", "status": "blocked"}]
+        }
+
+    emails = state.get("email_context", [])
+    if not emails:
+        print("Drafter Agent: No context emails found. Attempting to draft a new standalone email.")
+        import re
+        # Try to find a recipient email address in instruction
+        recipient_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', state["instruction"])
+        recipient_email = recipient_match.group(0) if recipient_match else None
+        
+        # If not in the instruction, scan recent conversation messages
+        if not recipient_email:
+            for msg in reversed(state.get("messages", [])):
+                content = msg.get("content", "") if isinstance(msg, dict) else getattr(msg, "content", "")
+                m = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', content)
+                if m:
+                    recipient_email = m.group(0)
+                    break
+        
+        if not recipient_email:
+            recipient_email = "recipient@example.com"
+
+        new_email_prompt = (
+            f"User's request: {state['instruction']}\n"
+            f"Recipient: {recipient_email}\n\n"
+            f"Compose a new email that fulfills the user's request.\n"
+            f"Style Profile Tone: {style_spec.tone}\n\n"
+            f"Return ONLY a JSON block with keys: 'subject', 'body' (in Markdown)."
+        )
+        
+        try:
+            response = client.messages.create(
+                model="llama-3.3-70b-versatile",
+                max_tokens=800,
+                system="You are an email composer. Output ONLY a valid JSON object containing keys 'subject' and 'body'. Do NOT wrap it in markdown formatting, reasoning, or preambles.",
+                messages=[{"role": "user", "content": new_email_prompt}]
+            )
+            import json
+            text = response.content[0].text
+            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                subject = data.get("subject", "Invitation" if "party" in state["instruction"].lower() else "Outreach")
+                body_markdown = data.get("body", "")
+            else:
+                subject = "Invitation" if "party" in state["instruction"].lower() else "Outreach"
+                body_markdown = text
+        except Exception as llm_err:
+            print(f"Drafter Agent: Failed to generate draft using LLM: {llm_err}")
+            subject = "New Email"
+            body_markdown = state["instruction"]
+
+        body_html = render_styled_html(body_markdown, style_details)
+        try:
+            gmail_draft = provider.create_draft(None, body_html, subject, to=recipient_email)
+            print(f"Drafter Agent: Created standalone draft in Gmail (Draft ID: {gmail_draft.id}, Thread ID: {gmail_draft.thread_id})")
+            
+            db_thread_id = gmail_draft.thread_id or gmail_draft.id or f"standalone-{uuid.uuid4()}"
+
+            user_uuid = None
+            try:
+                user_uuid = uuid.UUID(str(user_id))
+            except ValueError:
+                pass
+
+            style_profile_uuid = None
+            if style_details.get("id"):
+                try:
+                    style_profile_uuid = uuid.UUID(str(style_details.get("id")))
+                except ValueError:
+                    pass
+
+            row = await db.fetchrow(
+                "INSERT INTO drafts (user_id, thread_id, provider_draft_id, body_markdown, body_html, style_profile_id, status, created_by_agent) "
+                "VALUES ($1, $2, $3, $4, $5, $6, 'pending', 'drafter') RETURNING id",
+                user_uuid, db_thread_id, gmail_draft.id, body_markdown, body_html, style_profile_uuid
+            )
+            local_draft_id = str(row["id"])
+            
+            draft_results.append({
+                "local_draft_id": local_draft_id,
+                "provider_draft_id": gmail_draft.id,
+                "thread_id": db_thread_id,
+                "subject": subject,
+                "to": recipient_email,
+                "body_preview": body_markdown[:200]
+            })
+
+            pending_approvals.append({
+                "type": "send_email",
+                "resource": local_draft_id,
+                "payload": {
+                    "draft_id": local_draft_id,
+                    "to": recipient_email,
+                    "subject": subject,
+                    "body": body_markdown
+                },
+                "reasoning": f"Standalone email draft created for '{recipient_email}'. Review and approve to send."
+            })
+            print("Drafter Agent: Queued standalone 'send_email' task for approval gating.")
+        except Exception as draft_err:
+            print(f"Drafter Agent: Error creating standalone draft: {draft_err}")
+            errors.append({"error": f"Failed to create draft: {str(draft_err)}"})
+
+        return {
+            "draft_results": draft_results,
+            "pending_approvals": pending_approvals,
+            "errors": errors,
+            "completed_tasks": [{"agent": "drafter", "task": f"Generated standalone email to {recipient_email}", "status": "completed"}]
         }
 
     # Filter the emails to only those targeted by the user's instruction
@@ -183,9 +287,10 @@ async def drafter_agent_node(state: MailAgentState) -> dict:
                 "body_preview": body_markdown[:200]
             })
 
-            # 3. If the user's instruction implies sending or replying, queue a 'send_email' gated task
+            # 3. If the user's instruction implies sending or replying, queue a 'send_email' gated task.
+            #    NOTE: "draft" alone does NOT imply intent to send — the user may just want a draft saved.
             instruction_lower = state["instruction"].lower()
-            if any(w in instruction_lower for w in ["send", "reply", "mail", "outreach", "draft"]):
+            if any(w in instruction_lower for w in ["send", "reply", "outreach"]):
                 pending_approvals.append({
                     "type": "send_email",
                     "resource": local_draft_id,

@@ -42,13 +42,19 @@ async def approve(approval_id: str, edited_payload: Optional[Dict[str, Any]] = N
         return {"status": approval_row["status"], "result": "Approval has already been resolved"}
 
     payload = edited_payload if edited_payload is not None else approval_row["payload"]
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            pass
+
     await db.execute(
         "UPDATE approval_queue SET payload = $1::jsonb, status = 'approved', resolved_at = now() WHERE id = $2",
         json.dumps(payload), approval_uuid
     )
 
     if approval_row["action_type"] == "send_email":
-        draft_id = payload.get("draft_id") or approval_row["resource_id"]
+        draft_id = (payload.get("draft_id") if isinstance(payload, dict) else None) or approval_row["resource_id"]
         if not draft_id:
             raise HTTPException(status_code=400, detail="send_email approval is missing draft_id")
 
@@ -82,7 +88,7 @@ async def approve(approval_id: str, edited_payload: Optional[Dict[str, Any]] = N
             }
             body_html = render_styled_html(edited_payload["body"], style_details)
             provider = await get_mail_provider(str(draft_row["user_id"]))
-            subject = payload.get("subject")
+            subject = payload.get("subject") if isinstance(payload, dict) else None
             provider.update_draft(draft_row["provider_draft_id"], body_html, subject)
             await db.execute(
                 "UPDATE drafts SET body_markdown = $1, body_html = $2 WHERE id = $3",
@@ -95,13 +101,39 @@ async def approve(approval_id: str, edited_payload: Optional[Dict[str, Any]] = N
     if not thread_id:
         return {"status": "approved", "result": "Approval stored, but no source conversation was recorded to resume"}
 
-    # Resume the compiled graph from the conversation's checkpoint
+    # Resume the compiled graph from the conversation's checkpoint.
+    # Pass the groq_api_key from user settings so the resumed graph has LLM access for the aggregator.
+    # Pass approved=True plus user context so the executor can reinitialise provider ContextVars.
     graph = await get_compiled_graph()
     config = {"configurable": {"thread_id": thread_id}}
     
+    db_groq_key = ""
     try:
-        result = await graph.ainvoke(Command(resume={"approved": True}), config=config)
-        return {"status": "resumed", "result": str(result.get("messages", [])[-1] if result.get("messages") else "Done")}
+        user_row = await db.fetchrow("SELECT groq_api_key FROM users WHERE id = $1", approval_row["user_id"])
+        if user_row and user_row["groq_api_key"]:
+            from cryptography.fernet import Fernet
+            from app.config import settings
+            fernet = Fernet(settings.token_encryption_key.encode())
+            db_groq_key = fernet.decrypt(user_row["groq_api_key"].encode()).decode()
+    except Exception as e:
+        print(f"Approvals Router: Failed to decrypt user Groq key: {e}")
+        
+    resume_payload = {
+        "approved": True,
+        "user_id": str(approval_row["user_id"]),
+        "groq_api_key": db_groq_key,
+    }
+
+    try:
+        result = await graph.ainvoke(Command(resume=resume_payload), config=config)
+        # result may be an interrupt state if multiple approvals are pending; handle gracefully
+        if isinstance(result, dict):
+            msgs = result.get("messages", [])
+            last_msg = msgs[-1] if msgs else None
+            summary = last_msg.content if hasattr(last_msg, "content") else str(last_msg) if last_msg else "Done"
+        else:
+            summary = "Done"
+        return {"status": "resumed", "result": summary}
     except Exception as e:
         print(f"Approval resume error: {e}")
         return {"status": "approved", "note": f"Action approved but graph resume encountered: {str(e)}"}

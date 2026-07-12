@@ -13,8 +13,10 @@ Return a JSON tool call schema matching 'submit_meeting_details'.
 
 CRITICAL timezone rules:
 1. The user's query relative times (e.g., 'today 9 pm', 'tomorrow morning') are relative to the user's local timezone.
-2. Resolve these times first in the user's local timezone using the supplied User Local Time.
-3. Then, convert the resolved local times to UTC ISO 8601 format (e.g. 'YYYY-MM-DDTHH:MM:SSZ') for 'start_iso' and 'end_iso'.
+2. You will be given the user's current local time AND their UTC offset (e.g. +05:30).
+3. Use the numeric UTC offset to convert the resolved local time to UTC ISO 8601 format.
+4. Output 'start_iso' and 'end_iso' as UTC strings ending in 'Z' (e.g. '2026-07-12T09:00:00Z').
+5. NEVER use timezone abbreviations (IST, PST, etc.) — always use the numeric UTC offset for calculation.
 """
 
 async def scheduler_agent_node(state: MailAgentState) -> dict:
@@ -58,11 +60,19 @@ async def scheduler_agent_node(state: MailAgentState) -> dict:
             now_iso = datetime.now(timezone.utc).isoformat()
             local_now = datetime.now().astimezone()
             local_iso = local_now.isoformat()
-            local_tz = local_now.tzname()
+            # Use numeric UTC offset (e.g. '+05:30') instead of tzname() which gives
+            # platform-specific abbreviations (e.g. 'IST') that LLMs may misinterpret.
+            utc_offset = local_now.strftime("%z")  # e.g. '+0530'
+            # Format as ±HH:MM for clarity
+            if len(utc_offset) == 5:  # +0530
+                utc_offset_str = f"{utc_offset[:3]}:{utc_offset[3:]}"
+            else:
+                utc_offset_str = utc_offset
             
             prompt_content = (
                 f"Current UTC time: {now_iso}\n"
-                f"Current User Local Time: {local_iso} (Timezone: {local_tz})\n\n"
+                f"Current User Local Time: {local_iso}\n"
+                f"User UTC Offset: {utc_offset_str}\n\n"
                 f"Extract details from: {task_text}"
             )
             response = client.messages.create(

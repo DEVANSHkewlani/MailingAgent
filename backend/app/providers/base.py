@@ -62,6 +62,13 @@ class MailProvider(ABC):
     def check_if_draft_was_sent(self, draft_id: str) -> bool:
         pass
 
+    @abstractmethod
+    def delete_draft(self, draft_id: str) -> None:
+        pass
+
+    def get_message_body(self, message_id: str) -> str:
+        return ""
+
 
 class CalendarProvider(ABC):
     @abstractmethod

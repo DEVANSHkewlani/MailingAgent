@@ -4,7 +4,7 @@ import { Search, MessageSquare, ArrowLeft } from 'lucide-react'
 import { handleSendMessage, $emailRefreshSignal } from '../../store/chat'
 import { $userId } from '../../store/auth'
 import { Button } from '../ui/button'
-import { fetchEmails } from '../../lib/api'
+import { fetchEmails, fetchEmailBody } from '../../lib/api'
 
 interface EmailItem {
   id: string
@@ -43,6 +43,8 @@ function formatEmailTime(isoString: string): string {
 export function InboxView() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedEmail, setSelectedEmail] = useState<EmailItem | null>(null)
+  const [emailBody, setEmailBody] = useState<string>('')
+  const [loadingBody, setLoadingBody] = useState(false)
   const [emails, setEmails] = useState<EmailItem[]>([])
   const [loading, setLoading] = useState(false)
   
@@ -63,6 +65,23 @@ export function InboxView() {
       })
     return () => { active = false }
   }, [userId, refreshSignal])
+
+  const handleSelectEmail = (email: EmailItem) => {
+    setSelectedEmail(email)
+    setEmailBody('')
+    setLoadingBody(true)
+    fetchEmailBody(userId, email.id)
+      .then(body => {
+        setEmailBody(body)
+      })
+      .catch(err => {
+        console.error("InboxView: Failed to load email body", err)
+        setEmailBody(email.preview || "Failed to load email body.")
+      })
+      .finally(() => {
+        setLoadingBody(false)
+      })
+  }
 
   const filtered = emails.filter(email =>
     email.from.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -102,8 +121,12 @@ export function InboxView() {
           </div>
 
           {/* Email Content */}
-          <div className="text-xs leading-6 text-foreground font-sans whitespace-pre-wrap bg-(--ui-bg-editor) border border-(--ui-stroke-secondary) p-4 shadow-sm">
-            {selectedEmail.preview}
+          <div className="text-xs leading-relaxed text-foreground font-sans whitespace-pre-wrap break-words overflow-x-hidden bg-[var(--ui-bg-editor)] border border-[var(--ui-stroke-secondary)] p-5 shadow-sm min-h-[12rem] rounded-md">
+            {loadingBody ? (
+              <span className="text-(--ui-text-quaternary) font-mono">Fetching full email content...</span>
+            ) : (
+              emailBody || selectedEmail.preview
+            )}
           </div>
 
           {/* Action Buttons for Chat connection */}
@@ -164,7 +187,7 @@ export function InboxView() {
               filtered.map(email => (
                 <button
                   key={email.id}
-                  onClick={() => setSelectedEmail(email)}
+                  onClick={() => handleSelectEmail(email)}
                   className="w-full p-4 text-left transition-colors flex flex-col gap-1.5 hover:bg-(--ui-bg-quinary)"
                 >
                   <div className="flex items-center justify-between text-[0.6875rem] font-mono">

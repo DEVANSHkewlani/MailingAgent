@@ -18,7 +18,7 @@ import {
 import { $conversations, $activeConversationId, selectConversation, startNewConversation, handleDeleteConversation } from '../store/chat'
 import { $approvals } from '../store/approvals'
 import { $userId } from '../store/auth'
-import { $activeView, openSettings } from '../store/layout'
+import { $activeView, $sidebarOpen, openSettings } from '../store/layout'
 import { cn } from '../lib/utils'
 
 interface NavItem {
@@ -34,6 +34,7 @@ export function ChatSidebar() {
   const activeConvId = useStore($activeConversationId)
   const approvals = useStore($approvals)
   const userId = useStore($userId)
+  const sidebarOpen = useStore($sidebarOpen)
 
   const pendingApprovalsCount = approvals.length
 
@@ -45,19 +46,32 @@ export function ChatSidebar() {
   ]
 
   return (
-    <aside className="flex h-full w-[var(--sidebar-width)] flex-col border-r border-(--ui-stroke-secondary) bg-(--ui-bg-sidebar) select-none">
-      {/* Brand Header */}
-      <div className="flex h-[var(--titlebar-height,3rem)] items-center px-4 border-b border-(--ui-stroke-tertiary)">
-        <span className="font-mono text-sm font-semibold tracking-wide text-primary">
-          ✉ MAILING AGENT
-        </span>
-      </div>
+    <>
+      {/* Mobile backdrop overlay */}
+      {sidebarOpen && (
+        <div
+          onClick={() => $sidebarOpen.set(false)}
+          className="fixed inset-0 bg-black/20 z-40 md:hidden"
+        />
+      )}
+
+      <aside className={cn(
+        "flex h-full w-[var(--sidebar-width)] flex-col border-r border-(--ui-stroke-secondary) bg-(--ui-bg-sidebar) select-none transition-transform duration-200 z-50 shrink-0",
+        "max-md:fixed max-md:top-0 max-md:left-0 max-md:bottom-0",
+        sidebarOpen ? "translate-x-0" : "max-md:-translate-x-full"
+      )}>
+        {/* Brand Header */}
+        <div className="flex h-[var(--titlebar-height,3rem)] items-center px-4 border-b border-(--ui-stroke-tertiary)">
+          <span className="font-mono text-sm font-semibold tracking-wide text-primary">
+            ✉ MAILING AGENT
+          </span>
+        </div>
 
       {/* Action Button */}
       <div className="p-3">
         <button
           onClick={() => startNewConversation(userId)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:brightness-110 active:scale-95 transition-all"
+          className="flex w-full items-center justify-center gap-2 rounded-sm bg-primary py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:brightness-110 active:scale-95 transition-all"
         >
           <Plus className="size-4" />
           New Chat
@@ -75,10 +89,10 @@ export function ChatSidebar() {
               key={item.id}
               onClick={() => $activeView.set(item.id)}
               className={cn(
-                'flex w-full items-center justify-between rounded-md px-3 py-1.5 text-[0.8125rem] transition-colors',
+                'flex w-full items-center justify-between rounded-sm px-3 py-1.5 text-[0.8125rem] transition-colors',
                 active
-                  ? 'bg-(--ui-bg-tertiary) text-foreground border border-(--ui-stroke-tertiary)'
-                  : 'text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground border border-transparent'
+                  ? 'bg-(--ui-bg-tertiary) text-foreground font-semibold'
+                  : 'text-(--ui-text-secondary) hover:bg-(--ui-bg-quaternary) hover:text-foreground'
               )}
             >
               <div className="flex items-center gap-2.5">
@@ -118,10 +132,10 @@ export function ChatSidebar() {
                     selectConversation(conv.conversation_id)
                   }}
                   className={cn(
-                    'group flex w-full items-center justify-between gap-2 px-3 py-1.5 text-[0.8125rem] transition-colors text-left border border-transparent select-none cursor-pointer',
+                    'group flex w-full items-center justify-between gap-2 px-3 py-1.5 text-[0.8125rem] transition-colors text-left select-none cursor-pointer rounded-sm',
                     active
-                      ? 'bg-(--ui-bg-tertiary) text-foreground border-(--ui-stroke-tertiary)'
-                      : 'text-(--ui-text-secondary) hover:text-foreground'
+                      ? 'bg-(--ui-bg-tertiary) text-foreground font-semibold'
+                      : 'text-(--ui-text-secondary) hover:bg-(--ui-bg-quaternary) hover:text-foreground'
                   )}
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -150,13 +164,14 @@ export function ChatSidebar() {
       <div className="p-3 border-t border-(--ui-stroke-tertiary) bg-(--ui-bg-sidebar)">
         <button
           onClick={openSettings}
-          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-[0.8125rem] text-(--ui-text-secondary) hover:bg-(--chrome-action-hover) hover:text-foreground transition-colors"
+          className="flex w-full items-center gap-3 rounded-sm px-3 py-2 text-[0.8125rem] text-(--ui-text-secondary) hover:bg-(--ui-bg-quaternary) hover:text-foreground transition-colors"
         >
           <Settings className="size-4 opacity-80" />
           <span>Settings</span>
         </button>
       </div>
     </aside>
+    </>
   )
 }
 export default ChatSidebar

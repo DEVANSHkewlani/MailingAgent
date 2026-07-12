@@ -84,7 +84,10 @@ class GmailProvider(MailProvider):
         result = self.service.users().drafts().create(
             userId="me", body={"message": {"raw": raw, "threadId": thread_id}}
         ).execute()
-        return Draft(id=result["id"], thread_id=thread_id)
+        
+        # Extract threadId from the created draft resource returned by Google
+        res_thread_id = result.get("message", {}).get("threadId") or thread_id
+        return Draft(id=result["id"], thread_id=res_thread_id)
 
     def update_draft(self, draft_id: str, html_body: str, subject: Optional[str] = None) -> Draft:
         mime = MIMEText(html_body, "html")
@@ -122,6 +125,75 @@ class GmailProvider(MailProvider):
             return False
         except Exception:
             return True
+
+    def delete_draft(self, draft_id: str) -> None:
+        try:
+            self.service.users().drafts().delete(userId="me", id=draft_id).execute()
+            print(f"GmailProvider: Discarded draft {draft_id} successfully.")
+        except Exception as e:
+            print(f"GmailProvider: Warning - failed to delete draft {draft_id}: {e}")
+
+    def get_message_body(self, message_id: str) -> str:
+        try:
+            msg = self.service.users().messages().get(
+                userId="me", id=message_id, format="full"
+            ).execute()
+            payload = msg.get("payload", {})
+            
+            def _extract_plain_text(part) -> str:
+                mime_type = part.get("mimeType", "")
+                body_data = part.get("body", {}).get("data", "")
+                if mime_type == "text/plain" and body_data:
+                    try:
+                        return base64.urlsafe_b64decode(body_data).decode("utf-8", errors="ignore")
+                    except Exception:
+                        pass
+                if "parts" in part:
+                    for subpart in part["parts"]:
+                        txt = _extract_plain_text(subpart)
+                        if txt:
+                            return txt
+                return ""
+
+            body = _extract_plain_text(payload)
+            if body and body.strip():
+                return body
+
+            def _extract_html_text(part) -> str:
+                mime_type = part.get("mimeType", "")
+                body_data = part.get("body", {}).get("data", "")
+                if mime_type == "text/html" and body_data:
+                    try:
+                        html_raw = base64.urlsafe_b64decode(body_data).decode("utf-8", errors="ignore")
+                        import re
+                        # Clean scripts/styles blocks
+                        html_raw = re.sub(r'<(style|script|head)\b[^>]*>.*?</\1>', '', html_raw, flags=re.DOTALL | re.IGNORECASE)
+                        # Replace headers, paragraphs, lists, table elements, div, br tags with clean newlines
+                        html_raw = re.sub(r'</?(p|div|br|tr|h[1-6]|li)[^>]*>', '\n', html_raw, flags=re.IGNORECASE)
+                        # Strip remaining html tags
+                        clean = re.sub(r'<[^>]+>', '', html_raw)
+                        # Unescape entities
+                        clean = clean.replace('&nbsp;', ' ').replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&').replace('&quot;', '"').replace('&apos;', "'")
+                        # Normalize multiple empty lines to maximum 2 empty lines
+                        clean = re.sub(r'\n\s*\n\s*\n+', '\n\n', clean)
+                        return clean.strip()
+                    except Exception:
+                        pass
+                if "parts" in part:
+                    for subpart in part["parts"]:
+                        txt = _extract_html_text(subpart)
+                        if txt:
+                            return txt
+                return ""
+
+            body = _extract_html_text(payload)
+            if body and body.strip():
+                return body
+
+            return msg.get("snippet", "")
+        except Exception as e:
+            print(f"GmailProvider: Failed to fetch message body: {e}")
+            return ""
 
     def search(self, query: str, max_results: int = 20) -> List[Dict[str, Any]]:
         """Extended method utilized by list_emails tool. Pulls message metadata."""

@@ -1,12 +1,21 @@
 /**
- * ProviderSettings Component — OAuth connections and AI Credentials.
- * Lets the user connect Gmail and save their custom Groq or Anthropic API Keys.
+ * ProviderSettings Component — OAuth connections, SMTP Credentials, and AI Credentials.
+ * Lets the user connect Gmail, configure personal SMTP settings, and save their custom Groq Key.
  */
 
 import { useState, useEffect } from 'react'
 import { useStore } from '@nanostores/react'
-import { Link as LinkIcon, Mail, Check, Key } from 'lucide-react'
-import { getGoogleLoginUrl, checkGoogleAuthStatus, fetchGoogleProfile, type GoogleProfile } from '../../lib/api'
+import { Link as LinkIcon, Mail, Check, Key, Server } from 'lucide-react'
+import {
+  getGoogleLoginUrl,
+  checkGoogleAuthStatus,
+  fetchGoogleProfile,
+  fetchSMTPSettings,
+  saveSMTPSettings,
+  fetchGroqSettings,
+  saveGroqSettings,
+  type GoogleProfile
+} from '../../lib/api'
 import { $userId } from '../../store/auth'
 import { Button } from '../ui/button'
 import { ListRow, SectionHeading } from './primitives'
@@ -20,6 +29,15 @@ export function ProviderSettings() {
   const [groqKey, setGroqKey] = useState(localStorage.getItem('mailing_agent_groq_key') || '')
   const [isSaved, setIsSaved] = useState(false)
 
+  // SMTP Settings State
+  const [smtpHost, setSmtpHost] = useState('')
+  const [smtpPort, setSmtpPort] = useState(587)
+  const [smtpUsername, setSmtpUsername] = useState('')
+  const [smtpPassword, setSmtpPassword] = useState('')
+  const [smtpUseTls, setSmtpUseTls] = useState(true)
+  const [smtpSaved, setSmtpSaved] = useState(false)
+  const [smtpHasPassword, setSmtpHasPassword] = useState(false)
+
   // Check backend to see if user has valid credentials in database
   useEffect(() => {
     checkGoogleAuthStatus(userId)
@@ -31,6 +49,27 @@ export function ProviderSettings() {
         setGoogleConnected(profile.connected)
       })
       .catch(err => console.error("ProviderSettings: Google profile fetch failed", err))
+
+    // Load SMTP Settings from DB
+    fetchSMTPSettings(userId)
+      .then(cfg => {
+        setSmtpHost(cfg.smtp_host || '')
+        setSmtpPort(cfg.smtp_port || 587)
+        setSmtpUsername(cfg.smtp_username || '')
+        setSmtpUseTls(cfg.smtp_use_tls)
+        setSmtpHasPassword(cfg.has_password || false)
+      })
+      .catch(err => console.error("ProviderSettings: SMTP settings load failed", err))
+
+    // Load Groq Settings from DB
+    fetchGroqSettings(userId)
+      .then(cfg => {
+        if (cfg.groq_api_key) {
+          setGroqKey(cfg.groq_api_key)
+          localStorage.setItem('mailing_agent_groq_key', cfg.groq_api_key)
+        }
+      })
+      .catch(err => console.error("ProviderSettings: Groq settings load failed", err))
   }, [userId])
 
   const handleConnectGoogle = () => {
@@ -40,8 +79,37 @@ export function ProviderSettings() {
 
   const handleSaveKeys = () => {
     localStorage.setItem('mailing_agent_groq_key', groqKey)
-    setIsSaved(true)
-    setTimeout(() => setIsSaved(false), 2000)
+    saveGroqSettings(userId, groqKey)
+      .then(() => {
+        setIsSaved(true)
+        setTimeout(() => setIsSaved(false), 2000)
+      })
+      .catch(err => {
+        console.error("Failed to save Groq Key to database", err)
+        setIsSaved(true)
+        setTimeout(() => setIsSaved(false), 2000)
+      })
+  }
+
+  const handleSaveSMTPSettings = () => {
+    saveSMTPSettings({
+      user_id: userId,
+      smtp_host: smtpHost,
+      smtp_port: smtpPort,
+      smtp_username: smtpUsername,
+      smtp_password: smtpPassword || undefined,
+      smtp_use_tls: smtpUseTls
+    })
+      .then(() => {
+        setSmtpSaved(true)
+        setSmtpHasPassword(true)
+        setSmtpPassword('') // clear password field after saving
+        setTimeout(() => setSmtpSaved(false), 2000)
+      })
+      .catch(err => {
+        console.error("Failed to save SMTP settings", err)
+        alert("Failed to save SMTP settings")
+      })
   }
 
   return (
@@ -120,7 +188,104 @@ export function ProviderSettings() {
         </div>
       </div>
 
-      {/* 2. AI Engine API Keys */}
+      {/* 2. User-Specific SMTP Configuration */}
+      <div className="space-y-4 border-t border-(--ui-stroke-tertiary) pt-6">
+        <div>
+          <SectionHeading icon={Server} title="Personal SMTP Credentials" />
+          <p className="text-xs text-(--ui-text-tertiary) mt-1">
+            Configure your personal SMTP outgoing mail server parameters. When set, outgoing emails will be dispatched using these settings instead of OAuth REST APIs.
+          </p>
+        </div>
+
+        <div className="space-y-4 max-w-lg select-text">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-(--ui-text-secondary) select-none">
+                SMTP Host
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. smtp.gmail.com"
+                value={smtpHost}
+                onChange={e => setSmtpHost(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) text-xs outline-none focus:border-primary placeholder:text-(--ui-text-quaternary)"
+              />
+            </div>
+            <div className="col-span-1 flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-(--ui-text-secondary) select-none">
+                SMTP Port
+              </label>
+              <input
+                type="number"
+                placeholder="587"
+                value={smtpPort}
+                onChange={e => setSmtpPort(parseInt(e.target.value) || 587)}
+                className="w-full px-3 py-1.5 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) text-xs outline-none focus:border-primary placeholder:text-(--ui-text-quaternary)"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-(--ui-text-secondary) select-none">
+              SMTP Username (Email)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. user@gmail.com"
+              value={smtpUsername}
+              onChange={e => setSmtpUsername(e.target.value)}
+              className="w-full px-3 py-1.5 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) text-xs outline-none focus:border-primary placeholder:text-(--ui-text-quaternary)"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-(--ui-text-secondary) select-none flex items-center justify-between">
+              <span>SMTP Password (or App Password)</span>
+              {smtpHasPassword && (
+                <span className="text-[10px] text-green-600 font-semibold flex items-center gap-1 font-mono">
+                  <Check className="size-3" /> Password Saved
+                </span>
+              )}
+            </label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={smtpPassword}
+              onChange={e => setSmtpPassword(e.target.value)}
+              className="w-full px-3 py-1.5 rounded-lg border border-(--ui-stroke-tertiary) bg-(--ui-bg-quinary) text-xs outline-none focus:border-primary placeholder:text-(--ui-text-quaternary) font-mono"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 select-none py-1">
+            <input
+              type="checkbox"
+              id="smtp_tls"
+              checked={smtpUseTls}
+              onChange={e => setSmtpUseTls(e.target.checked)}
+              className="rounded border-(--ui-stroke-tertiary)"
+            />
+            <label htmlFor="smtp_tls" className="text-xs text-(--ui-text-secondary) font-semibold cursor-pointer">
+              Use TLS encryption (recommended)
+            </label>
+          </div>
+
+          <div className="select-none flex items-center gap-3">
+            <Button
+              onClick={handleSaveSMTPSettings}
+              className="bg-primary hover:brightness-110 text-primary-foreground font-bold px-5"
+            >
+              Save SMTP Config
+            </Button>
+            {smtpSaved && (
+              <span className="text-xs text-[var(--ui-green)] font-bold flex items-center gap-1">
+                <Check className="size-4" /> SMTP Settings saved!
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. AI Engine API Keys */}
       <div className="space-y-4 border-t border-(--ui-stroke-tertiary) pt-6">
         <div>
           <SectionHeading icon={Key} title="AI Model Credentials" />
@@ -163,4 +328,4 @@ export function ProviderSettings() {
     </div>
   )
 }
-export default ProviderSettings
+export default ProviderSettings;
