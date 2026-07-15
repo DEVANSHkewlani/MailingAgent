@@ -234,6 +234,24 @@ export async function deleteCronJob(jobId: string): Promise<void> {
   if (!response.ok) throw new Error(await response.text())
 }
 
+export interface CronRun {
+  id: string
+  job_id: string
+  conversation_id: string
+  status: 'running' | 'completed' | 'failed'
+  output?: string
+  error?: string
+  started_at: string
+  finished_at?: string
+}
+
+export async function fetchCronRuns(jobId: string): Promise<CronRun[]> {
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/runs`)
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+
 export interface SMTPSettings {
   configured: boolean
   smtp_host: string

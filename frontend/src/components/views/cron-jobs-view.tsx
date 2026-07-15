@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '@nanostores/react'
-import { Clock3, Pause, Play, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { Clock3, Pause, Play, Plus, RotateCw, Trash2, Activity } from 'lucide-react'
 import { $userId } from '../../store/auth'
 import {
   createCronJob,
@@ -9,7 +9,9 @@ import {
   pauseCronJob,
   resumeCronJob,
   triggerCronJob,
+  fetchCronRuns,
   type CronJob,
+  type CronRun,
 } from '../../lib/api'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -42,7 +44,44 @@ export function CronJobsView() {
   const [schedule, setSchedule] = useState('60')
   const [dailyTime, setDailyTime] = useState('09:00')
 
+  // History expanded state
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
+  const [runs, setRuns] = useState<CronRun[]>([])
+  const [loadingRuns, setLoadingRuns] = useState(false)
+
   const canCreate = useMemo(() => prompt.trim().length >= 3, [prompt])
+
+  function formatDuration(startedAt: string, finishedAt?: string | null) {
+    if (!finishedAt) return 'Running...'
+    const start = new Date(startedAt).getTime()
+    const end = new Date(finishedAt).getTime()
+    const diffMs = end - start
+    if (diffMs < 1000) return `${diffMs}ms`
+    const diffSec = Math.round(diffMs / 1000)
+    if (diffSec < 60) return `${diffSec}s`
+    const diffMin = Math.floor(diffSec / 60)
+    const remSec = diffSec % 60
+    return `${diffMin}m ${remSec}s`
+  }
+
+  async function toggleHistory(jobId: string) {
+    if (expandedJobId === jobId) {
+      setExpandedJobId(null)
+      setRuns([])
+    } else {
+      setExpandedJobId(jobId)
+      setRuns([])
+      setLoadingRuns(true)
+      try {
+        const history = await fetchCronRuns(jobId)
+        setRuns(history)
+      } catch (err: any) {
+        console.error('Failed to fetch runs:', err)
+      } finally {
+        setLoadingRuns(false)
+      }
+    }
+  }
 
   async function refresh() {
     setLoading(true)
@@ -175,6 +214,15 @@ export function CronJobsView() {
                     {job.last_error && <div className="text-[0.6875rem] text-(--ui-red)">Last error: {job.last_error}</div>}
                   </div>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={expandedJobId === job.id ? 'bg-primary/10 border-primary/20 text-primary' : ''}
+                      onClick={() => toggleHistory(job.id)}
+                    >
+                      <Activity className="size-3.5" />
+                      History
+                    </Button>
                     <Button size="sm" variant="outline" disabled={busyId === job.id} onClick={() => updateJob(job, () => triggerCronJob(job.id))}>
                       <RotateCw className="size-3.5" />
                       Run Now
@@ -194,6 +242,64 @@ export function CronJobsView() {
                     </Button>
                   </div>
                 </div>
+
+                {/* Expanded execution history sub-panel */}
+                {expandedJobId === job.id && (
+                  <div className="mt-4 border-t border-(--ui-stroke-tertiary) pt-4 space-y-3 font-sans">
+                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Activity className="size-3.5 text-primary" />
+                      Execution History Logs
+                    </div>
+                    {loadingRuns ? (
+                      <div className="text-xs text-(--ui-text-tertiary) py-2">Loading logs...</div>
+                    ) : runs.length === 0 ? (
+                      <div className="text-xs text-(--ui-text-tertiary) py-2">No executions recorded yet.</div>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                        {runs.map(run => (
+                          <div key={run.id} className="bg-(--ui-bg-quinary) border border-(--ui-stroke-tertiary) rounded-lg p-3 text-xs space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge 
+                                  variant={
+                                    run.status === 'completed' ? 'success' : 
+                                    run.status === 'failed' ? 'destructive' : 'muted'
+                                  }
+                                >
+                                  {run.status.toUpperCase()}
+                                </Badge>
+                                <span className="text-(--ui-text-tertiary) text-[10px] font-mono">
+                                  {formatDate(run.started_at)}
+                                </span>
+                              </div>
+                              <span className="text-(--ui-text-tertiary) text-[10px]">
+                                Duration: {formatDuration(run.started_at, run.finished_at)}
+                              </span>
+                            </div>
+                            
+                            {run.output && (
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-semibold text-(--ui-text-tertiary)">Output Summary:</span>
+                                <pre className="bg-[#0c0c0e] border border-white/5 text-white/80 rounded p-2 text-[11px] font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                  {run.output}
+                                </pre>
+                              </div>
+                            )}
+
+                            {run.error && (
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-semibold text-(--ui-red)">Error Log:</span>
+                                <pre className="bg-[#120a0b] border border-red-500/10 text-red-400 rounded p-2 text-[11px] font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                  {run.error}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

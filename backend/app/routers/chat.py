@@ -19,7 +19,7 @@ async def list_conversations(user_id: str):
     user_uuid = UUID(user_id)
     rows = await db.fetch(
         "SELECT id::text as conversation_id, title, updated_at "
-        "FROM conversations WHERE user_id = $1 ORDER BY updated_at DESC",
+        "FROM conversations WHERE user_id = $1 AND title NOT LIKE 'Cron: %' AND title != 'Initial Sync' ORDER BY updated_at DESC",
         user_uuid
     )
     return [dict(r) for r in rows]

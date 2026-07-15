@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
+import { AgentFlowVisual } from '../components/AgentFlowVisual'
+import { BulkEmailerVisual } from '../components/BulkEmailerVisual'
 
 /**
  * DocsPage — Complete project documentation using the app's own CSS variable theme.
@@ -17,6 +19,7 @@ const sections = [
   { id: 'webhooks', label: 'Webhooks & Notifications' },
   { id: 'frontend', label: 'Frontend Architecture' },
   { id: 'api-reference', label: 'API Reference' },
+  { id: 'setup-guide', label: 'Connect & Setup Guide' },
   { id: 'deployment', label: 'Deployment' },
 ]
 
@@ -81,10 +84,10 @@ export function DocsPage() {
               <button
                 key={s.id}
                 onClick={() => scrollTo(s.id)}
-                className={`text-left text-sm py-2 px-3 rounded-sm transition-colors cursor-pointer focus:outline-none ${
+                className={`text-left text-sm py-1.5 px-1 transition-colors cursor-pointer focus:outline-none ${
                   activeSection === s.id
-                    ? 'bg-(--ui-bg-tertiary) text-foreground font-semibold'
-                    : 'text-(--ui-text-secondary) hover:bg-(--ui-bg-quaternary) hover:text-foreground'
+                    ? 'text-primary font-semibold'
+                    : 'text-(--ui-text-secondary) hover:text-foreground'
                 }`}
               >
                 {i + 1}. {s.label}
@@ -105,7 +108,7 @@ export function DocsPage() {
             <div className="mt-4 rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-4">
               <div className="text-xs font-semibold text-foreground mb-2">Tech Stack</div>
               <div className="flex flex-wrap gap-2 text-xs text-(--ui-text-secondary)">
-                {['Python 3.11+', 'FastAPI', 'LangGraph', 'PostgreSQL', 'Google Gmail API', 'React + Vite', 'Tailwind CSS', 'Nanostores', 'Electron (optional)', 'Twilio (WhatsApp)'].map(t => (
+                {['Python 3.11+', 'FastAPI', 'LangGraph', 'PostgreSQL', 'Google Gmail API', 'React + Vite', 'Tailwind CSS', 'Nanostores', 'Electron (optional)'].map(t => (
                   <span key={t} className="rounded-full bg-(--ui-bg-quinary) px-2.5 py-1 border border-(--ui-stroke-tertiary)">{t}</span>
                 ))}
               </div>
@@ -118,13 +121,21 @@ export function DocsPage() {
             <p className="text-sm leading-relaxed text-(--ui-text-secondary) mb-4">
               The system resolves natural-language instructions using a Directed Cyclic Graph on LangGraph. A Supervisor Router dispatches tasks sequentially to specialized worker nodes.
             </p>
+            
+            {/* Architectural Visual Diagram */}
+            <div className="mb-6">
+              <AgentFlowVisual />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {[
-                { name: 'Reader Worker', desc: 'Fetches emails from Gmail via the Google API. Extracts headers, body, attachments, timestamps, and thread IDs. Supports pagination and label filtering.' },
-                { name: 'Categorizer Worker', desc: 'Classifies emails into categories (urgent, action_needed, newsletter, personal, etc.) using user-seeded rules with LLM fallback for ambiguous cases.' },
-                { name: 'Drafter Worker', desc: 'Generates context-aware reply drafts matching the user\'s writing style profile — font, tone, signature, and HTML formatting are preserved.' },
-                { name: 'Summarizer Worker', desc: 'Condenses multi-reply threads into key-point summaries. Maintains a watermark so re-summarizing only processes new messages.' },
-                { name: 'Executor Worker', desc: 'Performs approved actions: sending emails via Gmail API or SMTP, creating calendar events, applying labels, and archiving threads.' },
+                { name: 'Reader Agent', desc: 'Fetches emails from Gmail via the Google API. Extracts headers, body, attachments, timestamps, and thread IDs. Supports pagination and label filtering.' },
+                { name: 'Categorizer Agent', desc: 'Classifies emails into categories (urgent, action_needed, newsletter, personal, etc.) using user-seeded rules with LLM fallback for ambiguous cases.' },
+                { name: 'Drafter Agent', desc: 'Generates context-aware reply drafts matching the user\'s writing style profile — font, tone, signature, and HTML formatting are preserved.' },
+                { name: 'Summarizer Agent', desc: 'Condenses multi-reply threads into key-point summaries. Maintains a watermark so re-summarizing only processes new messages.' },
+                { name: 'Scheduler Agent', desc: 'Coordinates calendars and schedules meetings on Google Calendar, performing conflict avoidance checks.' },
+                { name: 'Reminder Agent', desc: 'Automatically schedules commitments and follows up on deadlines flagged in conversations.' },
+                { name: 'Executor Agent (Tool)', desc: 'Performs approved actions: sending emails via Gmail API or SMTP, creating calendar events, applying labels, and archiving threads.' },
                 { name: 'Supervisor Router', desc: 'The orchestrator node that reads user intent, selects the right worker sequence, and manages state transitions through the graph.' },
               ].map((w, i) => (
                 <div key={i} className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-4">
@@ -141,6 +152,57 @@ export function DocsPage() {
             <p className="text-sm leading-relaxed text-(--ui-text-secondary) mb-4">
               Every action requested by a graph node passes through a strict policy gate before entering the executor loop.
             </p>
+
+            {/* Security Visual Diagram */}
+            <div className="mb-6 rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-6">
+              <div className="text-xs font-semibold text-foreground mb-4 text-center">Gated Action Approval Pipeline Flow</div>
+              <svg className="w-full h-auto max-w-xl mx-auto" viewBox="0 0 600 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="grid2" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.015)" strokeWidth="1"/>
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid2)" rx="8" />
+                
+                {/* 1. Request Action */}
+                <rect x="15" y="42" width="90" height="45" rx="6" fill="#141416" stroke="rgba(59, 130, 246, 0.3)" />
+                <text x="60" y="62" fill="#ffffff" fontSize="9" fontWeight="bold" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>1. Action Req</text>
+                <text x="60" y="74" fill="#999999" fontSize="7" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>e.g., Send Reply</text>
+
+                {/* Arrow */}
+                <path d="M 113 64.5 L 133 64.5" stroke="#475569" strokeWidth="1.5" fill="none" />
+                
+                {/* 2. Security Gate */}
+                <rect x="140" y="42" width="95" height="45" rx="6" fill="rgba(249, 115, 22, 0.1)" stroke="#f97316" />
+                <text x="187.5" y="62" fill="#ffd8a8" fontSize="9" fontWeight="bold" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>2. Policy Gate</text>
+                <text x="187.5" y="74" fill="#f97316" fontSize="7" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>Checks Rules</text>
+
+                {/* Arrow */}
+                <path d="M 243 64.5 L 263 64.5" stroke="#475569" strokeWidth="1.5" fill="none" />
+
+                {/* 3. HMAC Token Generation */}
+                <rect x="270" y="42" width="100" height="45" rx="6" fill="rgba(139, 92, 246, 0.1)" stroke="#8b5cf6" />
+                <text x="320" y="62" fill="#e9d5ff" fontSize="9" fontWeight="bold" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>3. HMAC Token</text>
+                <text x="320" y="74" fill="#c084fc" fontSize="7" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>Interrupts Graph</text>
+
+                {/* Arrow */}
+                <path d="M 378 64.5 L 398 64.5" stroke="#475569" strokeWidth="1.5" fill="none" />
+
+                {/* 4. Manual Approval */}
+                <rect x="405" y="42" width="95" height="45" rx="6" fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" />
+                <text x="452.5" y="62" fill="#a7f3d0" fontSize="9" fontWeight="bold" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>4. UI Approval</text>
+                <text x="452.5" y="74" fill="#34d399" fontSize="7" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>Verify & Resume</text>
+
+                {/* Arrow */}
+                <path d="M 508 64.5 L 528 64.5" stroke="#475569" strokeWidth="1.5" fill="none" />
+
+                {/* 5. Execution */}
+                <rect x="535" y="42" width="50" height="45" rx="6" fill="rgba(6, 182, 212, 0.1)" stroke="#06b6d4" />
+                <text x="560" y="62" fill="#e2e8f0" fontSize="9" fontWeight="bold" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>5. Run</text>
+                <text x="560" y="74" fill="#22d3ee" fontSize="7" textAnchor="middle" style={{ fontFamily: 'Inter, sans-serif' }}>SMTP/API</text>
+              </svg>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
                 { level: 'CONFIRM', color: 'text-(--ui-red)', desc: 'High-risk actions (sending emails, booking events). The gate generates a single-use HMAC token and triggers a LangGraph interrupt, pausing execution until manual approval via the Approvals dashboard.' },
@@ -244,11 +306,16 @@ export function DocsPage() {
           </section>
 
           {/* §5 Bulk Emailer */}
-          <section id="bulk-emailer" className="border-t border-(--ui-stroke-tertiary) pt-8">
+          <section id="bulk-emailer" className="border-t border-(--ui-stroke-tertiary) pt-8 space-y-4">
             <h2 className="text-xl font-bold text-foreground mb-4">5. Bulk Emailer</h2>
             <p className="text-sm leading-relaxed text-(--ui-text-secondary) mb-4">
               A campaign-style bulk email system adapted from The Curator Mail project. Supports personalized templates, CSV-driven contact lists, SMTP routing, and reply threading.
             </p>
+
+            <div className="mb-4">
+              <BulkEmailerVisual />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               {[
                 { name: 'SMTP Management', desc: 'Direct SMTP connections with auto-reconnect. Supports STARTTLS (port 587) and SSL (port 465). Connection health is verified with NOOP before each send.' },
@@ -283,23 +350,14 @@ export function DocsPage() {
             <p className="text-sm leading-relaxed text-(--ui-text-secondary) mb-4">
               Configure background cron jobs to push status updates to messaging platforms.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-3">
               <div className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-4">
-                <div className="text-xs font-bold text-foreground mb-2">WhatsApp (Twilio)</div>
+                <div className="text-xs font-bold text-foreground mb-2">Slack / Discord Webhook Integration</div>
                 <p className="text-xs leading-relaxed text-(--ui-text-secondary) mb-2">
-                  Create a Twilio sandbox. POST to the Messages API with From, To (whatsapp:+number), and Body parameters.
+                  Set <code>NOTIFICATION_WEBHOOK_URL</code> in your environment. The system posts JSON summaries automatically to your Slack channel or Discord webhook after each background cron run completes.
                 </p>
                 <code className="block text-xs bg-(--ui-bg-quinary) rounded-lg p-2 text-(--ui-text-tertiary) font-mono overflow-x-auto">
-                  POST /2010-04-01/Accounts/[SID]/Messages.json
-                </code>
-              </div>
-              <div className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-4">
-                <div className="text-xs font-bold text-foreground mb-2">Slack / Discord Webhook</div>
-                <p className="text-xs leading-relaxed text-(--ui-text-secondary) mb-2">
-                  Set NOTIFICATION_WEBHOOK_URL in your environment. The system posts JSON summaries automatically after each cron run.
-                </p>
-                <code className="block text-xs bg-(--ui-bg-quinary) rounded-lg p-2 text-(--ui-text-tertiary) font-mono overflow-x-auto">
-                  {'{ "text": "[Cron: 4 emails categorized]" }'}
+                  {'{ "text": "[Cron: 4 emails categorized, 2 drafts created]" }'}
                 </code>
               </div>
             </div>
@@ -404,9 +462,117 @@ export function DocsPage() {
             ))}
           </section>
 
-          {/* §9 Deployment */}
+          {/* §9 Connect & Setup Guide */}
+          <section id="setup-guide" className="border-t border-(--ui-stroke-tertiary) pt-8 space-y-6">
+            <h2 className="text-xl font-bold text-foreground">9. Connect & Setup Guide</h2>
+            <p className="text-sm leading-relaxed text-(--ui-text-secondary)">
+              Follow this comprehensive integration guide to retrieve the necessary keys, set up Google OAuth, gather SMTP credentials, and configure secure storage.
+            </p>
+
+            <div className="space-y-4">
+              {/* Card 1: Google OAuth */}
+              <div className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-5 space-y-3">
+                <div className="text-sm font-bold text-primary flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] text-primary">1</span>
+                  Google Gmail API & OAuth Setup
+                </div>
+                <p className="text-xs leading-relaxed text-(--ui-text-secondary)">
+                  Required for reading your inbox messages, creating automated response drafts, and executing approved email sends via the official Gmail API.
+                </p>
+                <div className="text-xs bg-(--ui-bg-quinary) border border-(--ui-stroke-tertiary) rounded-lg p-3 space-y-2 text-(--ui-text-secondary)">
+                  <p className="font-semibold text-foreground">Step-by-Step Instructions:</p>
+                  <ol className="list-decimal list-inside space-y-1.5 pl-1">
+                    <li>Go to the <a href="https://console.cloud.google.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">Google Cloud Console</a>.</li>
+                    <li>Create a new project. Search for <strong>Gmail API</strong> in the API Library and enable it.</li>
+                    <li>Go to <strong>OAuth Consent Screen</strong>. Set User Type to <strong>External</strong> or Internal (Workspace).</li>
+                    <li>Add the following required scopes:
+                      <ul className="list-disc list-inside pl-4 mt-1 space-y-0.5 text-[11px] text-(--ui-text-tertiary)">
+                        <li><code>https://www.googleapis.com/auth/gmail.modify</code> (Read/Write/Archive access)</li>
+                        <li><code>https://www.googleapis.com/auth/gmail.compose</code> (Create replies)</li>
+                        <li><code>openid</code>, <code>email</code>, and <code>profile</code> (User registration)</li>
+                      </ul>
+                    </li>
+                    <li>Navigate to <strong>Credentials</strong> &gt; <strong>Create Credentials</strong> &gt; <strong>OAuth Client ID</strong>. Select <strong>Web Application</strong>.</li>
+                    <li>Add the Authorized Redirect URI: <code className="text-foreground bg-black/40 px-1 rounded">http://localhost:8000/auth/callback</code>.</li>
+                    <li>Download your Client ID and Client Secret, then add them to your environment variables.</li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* Card 2: Groq API Key */}
+              <div className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-5 space-y-3">
+                <div className="text-sm font-bold text-primary flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] text-primary">2</span>
+                  Groq API Credentials (LLM Node)
+                </div>
+                <p className="text-xs leading-relaxed text-(--ui-text-secondary)">
+                  Powers the multi-agent routing graph using highly optimized models (specifically <code>llama-3.3-70b-versatile</code>) to draft responses and analyze threads.
+                </p>
+                <div className="text-xs bg-(--ui-bg-quinary) border border-(--ui-stroke-tertiary) rounded-lg p-3 space-y-2 text-(--ui-text-secondary)">
+                  <p className="font-semibold text-foreground">How to Get & Configure Your Key:</p>
+                  <ul className="list-disc list-inside space-y-1.5 pl-1">
+                    <li>Sign up or log in at the <a href="https://console.groq.com" target="_blank" rel="noreferrer" className="text-primary hover:underline">Groq Console</a>.</li>
+                    <li>Go to <strong>API Keys</strong> in the sidebar menu and click <strong>Create API Key</strong>.</li>
+                    <li>Copy the key (starts with <code>gsk_</code>).</li>
+                    <li>Paste this key into the app under <strong>Settings &gt; Email Connections</strong> or define the <code>GROQ_API_KEY</code> variable in your backend environment variables.</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Card 3: SMTP Credentials */}
+              <div className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-5 space-y-3">
+                <div className="text-sm font-bold text-primary flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] text-primary">3</span>
+                  SMTP Setup & Credentials (Bulk Outreach)
+                </div>
+                <p className="text-xs leading-relaxed text-(--ui-text-secondary)">
+                  Required for executing high-volume campaigns, cold outreach, and reply-threaded campaign workflows using secondary mailing servers.
+                </p>
+                <div className="text-xs bg-(--ui-bg-quinary) border border-(--ui-stroke-tertiary) rounded-lg p-3 space-y-2 text-(--ui-text-secondary)">
+                  <p className="font-semibold text-foreground">Getting Gmail SMTP credentials:</p>
+                  <ol className="list-decimal list-inside space-y-1 pl-1">
+                    <li>Enable <strong>2-Step Verification</strong> on your Google account.</li>
+                    <li>Go to <strong>Google Account Security</strong> &gt; <strong>2-Step Verification</strong> &gt; <strong>App passwords</strong>.</li>
+                    <li>Choose <strong>Other (Custom name)</strong>, type <code>MailingAgent</code>, and click <strong>Generate</strong>.</li>
+                    <li>Copy the 16-character code (this serves as your SMTP password).</li>
+                    <li>Configure the connections settings:
+                      <ul className="list-disc list-inside pl-4 mt-1 text-[11px] text-(--ui-text-tertiary)">
+                        <li>SMTP Host: <code>smtp.gmail.com</code></li>
+                        <li>SMTP Port: <code>587</code> (STARTTLS) or <code>465</code> (SSL)</li>
+                        <li>SMTP Username: <code>your-email@gmail.com</code></li>
+                        <li>SMTP Password: <code>[16-character app password]</code></li>
+                      </ul>
+                    </li>
+                  </ol>
+                  <p className="font-semibold text-foreground pt-1">Test Connection:</p>
+                  <p className="text-[11px]">Use the <strong>Test SMTP</strong> option in the Bulk Emailer UI to dispatch a diagnostic email and verify security handshakes prior to running campaigns.</p>
+                </div>
+              </div>
+
+              {/* Card 4: Encryption Key */}
+              <div className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-5 space-y-3">
+                <div className="text-sm font-bold text-primary flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] text-primary">4</span>
+                  Token Storage Encryption Key
+                </div>
+                <p className="text-xs leading-relaxed text-(--ui-text-secondary)">
+                  The database stores Google access and refresh tokens. To prevent compromise, all tokens are encrypted symmetrically at rest using Fernet (AES-128 in CBC mode).
+                </p>
+                <div className="text-xs bg-(--ui-bg-quinary) border border-(--ui-stroke-tertiary) rounded-lg p-3 space-y-1 text-(--ui-text-secondary)">
+                  <p className="font-semibold text-foreground">Generate Encryption Key:</p>
+                  <p className="mb-2">Run the following Python script to generate a valid base64 key:</p>
+                  <code className="block bg-black/40 text-foreground p-2 rounded text-[11px] font-mono overflow-x-auto">
+                    {"python -c \"import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())\""}
+                  </code>
+                  <p className="text-[11px] text-(--ui-text-tertiary) pt-1">Save this key as <code>TOKEN_ENCRYPTION_KEY</code> in your environment or <code>.env</code> file.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* §10 Deployment */}
           <section id="deployment" className="border-t border-(--ui-stroke-tertiary) pt-8">
-            <h2 className="text-xl font-bold text-foreground mb-4">9. Deployment</h2>
+            <h2 className="text-xl font-bold text-foreground mb-4">10. Deployment</h2>
             <div className="space-y-3">
               <div className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-4">
                 <div className="text-xs font-bold text-foreground mb-2">Environment Variables</div>
@@ -416,11 +582,7 @@ GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=xxx
 GROQ_API_KEY=gsk_xxx
 ENCRYPTION_KEY=<32-byte-base64>
-NOTIFICATION_WEBHOOK_URL=https://hooks.slack.com/services/xxx
-TWILIO_ACCOUNT_SID=ACxxx
-TWILIO_AUTH_TOKEN=xxx
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
-TWILIO_WHATSAPP_TO=whatsapp:+1xxxxxxxxxx`}
+NOTIFICATION_WEBHOOK_URL=https://hooks.slack.com/services/xxx`}
                 </pre>
               </div>
               <div className="rounded-xl border border-(--ui-stroke-secondary) bg-(--ui-bg-editor) p-4">

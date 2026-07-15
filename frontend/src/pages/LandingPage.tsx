@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Download, ArrowRight, Zap, Shield, Cpu, GitBranch, Clock, Mail } from 'lucide-react'
+import { AgentFlowVisual } from '../components/AgentFlowVisual'
+import { BulkEmailerVisual } from '../components/BulkEmailerVisual'
+import { SetupOnboardingVisual } from '../components/SetupOnboardingVisual'
 
 /**
  * LandingPage — Framer dark-canvas marketing page.
@@ -13,6 +16,7 @@ import { Download, ArrowRight, Zap, Shield, Cpu, GitBranch, Clock, Mail } from '
 export function LandingPage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [installable, setInstallable] = useState(false)
+  const [isScrolled, setIsScrolled] = useState(false)
 
   useEffect(() => {
     document.body.classList.add('scrollable-body')
@@ -25,10 +29,16 @@ export function LandingPage() {
     }
     window.addEventListener('beforeinstallprompt', handler as any)
 
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 40)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+
     return () => {
       document.body.classList.remove('scrollable-body')
       document.documentElement.classList.remove('scrollable-body')
       window.removeEventListener('beforeinstallprompt', handler as any)
+      window.removeEventListener('scroll', handleScroll)
     }
   }, [])
 
@@ -65,69 +75,112 @@ export function LandingPage() {
         fontFeatureSettings: "'cv11', 'ss03', 'ss07'",
       }}
     >
-      {/* ─── Top Nav ─── */}
-      <header
-        className="sticky top-0 z-50 flex items-center justify-between px-6 sm:px-12"
+      {/* ─── Top Floating Glass Nav ─── */}
+      <div 
+        className="fixed z-50 w-[95%] left-1/2 -translate-x-1/2 transition-all duration-500 ease-out pointer-events-none"
         style={{
-          height: 56,
-          background: 'rgba(9,9,9,0.85)',
-          backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid #1a1a1a',
+          top: isScrolled ? '20px' : '28px',
+          maxWidth: isScrolled ? '700px' : '960px',
         }}
       >
-        <span
-          className="font-semibold tracking-tight select-none"
-          style={{ fontSize: 14, letterSpacing: '-0.14px' }}
+        <header
+          className="flex items-center justify-between rounded-full pointer-events-auto transition-all duration-500 ease-out"
+          style={{
+            padding: isScrolled ? '10px 30px' : '14px 40px',
+            background: isScrolled ? 'rgba(10, 10, 10, 0.8)' : 'rgba(15, 15, 15, 0.45)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            boxShadow: isScrolled 
+              ? '0 10px 30px -10px rgba(0, 0, 0, 0.8), inset 0 1px 0 0 rgba(255, 255, 255, 0.1)'
+              : '0 20px 40px -15px rgba(0, 0, 0, 0.7), inset 0 1px 0 0 rgba(255, 255, 255, 0.12)',
+          }}
         >
-          ✉ Mailing Agent
-        </span>
-        <nav className="flex items-center gap-8">
-          <button
-            onClick={() => scrollTo('features')}
-            className="cursor-pointer focus:outline-none"
-            style={{ fontSize: 14, fontWeight: 500, color: '#999999', letterSpacing: '-0.14px' }}
+          <span
+            className="font-bold tracking-tight select-none text-white/95 flex items-center gap-1.5"
+            style={{ fontSize: 15, letterSpacing: '-0.15px' }}
           >
-            Features
-          </button>
-          <Link
-            to="/docs"
-            style={{ fontSize: 14, fontWeight: 500, color: '#999999', letterSpacing: '-0.14px' }}
-          >
-            Docs
-          </Link>
-          <Link to="/app">
+            ✉ Mailing Agent
+          </span>
+          <nav className="flex items-center gap-6 font-sans">
             <button
-              style={{
-                background: '#ffffff',
-                color: '#000000',
-                fontSize: 14,
-                fontWeight: 500,
-                letterSpacing: '-0.14px',
-                borderRadius: 100,
-                padding: '10px 15px',
-                border: 'none',
-                cursor: 'pointer',
-              }}
+              onClick={() => scrollTo('features')}
+              className="cursor-pointer focus:outline-none text-white/50 hover:text-white/80 transition-colors"
+              style={{ fontSize: 14.5, fontWeight: 500, letterSpacing: '-0.15px' }}
             >
-              Launch App
+              Features
             </button>
-          </Link>
-        </nav>
-      </header>
+            <Link
+              to="/docs"
+              className="text-white/50 hover:text-white/80 transition-colors"
+              style={{ fontSize: 14.5, fontWeight: 500, letterSpacing: '-0.15px' }}
+            >
+              Docs
+            </Link>
+            <Link to="/app">
+              <button
+                className="font-sans"
+                style={{
+                  background: '#ffffff',
+                  color: '#000000',
+                  fontSize: 14.5,
+                  fontWeight: 600,
+                  letterSpacing: '-0.15px',
+                  borderRadius: 100,
+                  padding: '8px 18px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(255, 255, 255, 0.1)',
+                }}
+              >
+                Launch App
+              </button>
+            </Link>
+          </nav>
+        </header>
+      </div>
 
-      {/* ─── Hero ─── */}
-      <section className="max-w-7xl mx-auto px-6 sm:px-12 pt-24 pb-20 text-center">
+      {/* ─── Background Spotlight Gradients ─── */}
+      <div 
+        className="absolute pointer-events-none overflow-visible left-1/2 -translate-x-1/2"
+        style={{
+          top: '150px',
+          width: '800px',
+          height: '600px',
+          zIndex: 0,
+        }}
+      >
+        <div 
+          className="absolute w-[600px] h-[400px] rounded-full filter blur-[120px] opacity-40" 
+          style={{
+            background: 'radial-gradient(circle, rgba(37, 99, 235, 0.45) 0%, rgba(168, 85, 247, 0.3) 50%, rgba(236, 72, 153, 0) 100%)',
+            top: '0px',
+            left: '100px',
+          }}
+        />
+        <div 
+          className="absolute w-[500px] h-[350px] rounded-full filter blur-[100px] opacity-35" 
+          style={{
+            background: 'radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, rgba(37, 99, 235, 0.25) 60%, rgba(236, 72, 153, 0) 100%)',
+            top: '120px',
+            left: '150px',
+          }}
+        />
+      </div>
+
+      {/* ─── Hero (Centered with Spotlights) ─── */}
+      <section className="max-w-7xl mx-auto px-6 sm:px-12 min-h-[85vh] flex flex-col justify-center items-center text-center relative pt-28 pb-16 z-10">
         <h1
           className="mx-auto"
           style={{
-            fontSize: 'clamp(42px, 7vw, 85px)',
+            fontSize: 'clamp(52px, 8.5vw, 100px)',
             fontWeight: 500,
             lineHeight: 0.95,
-            letterSpacing: '-4.25px',
-            maxWidth: 900,
+            letterSpacing: '-3.85px',
+            maxWidth: 950,
           }}
         >
-          The inbox that works for you
+          The <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontWeight: 'normal' }}>inbox</span> that works for you
         </h1>
         <p
           className="mx-auto mt-6"
@@ -191,6 +244,73 @@ export function LandingPage() {
         </p>
       </section>
 
+      {/* ─── LangGraph Visualization Section ─── */}
+      <section className="max-w-6xl mx-auto px-6 sm:px-12 py-16 border-t border-(--ui-stroke-tertiary)">
+        <div className="text-center mb-10 max-w-2xl mx-auto">
+          <h2
+            style={{
+              fontSize: 'clamp(28px, 4.5vw, 48px)',
+              fontWeight: 500,
+              lineHeight: 1.1,
+              letterSpacing: '-2.2px',
+            }}
+          >
+            Multi-Agent Stateflow <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontWeight: 'normal' }}>Orchestration</span>
+          </h2>
+          <p className="mt-3 text-sm text-[#999999] leading-relaxed">
+            The assistant runs on a Directed Cyclic Graph (DAG) using LangGraph. Interactive worker nodes coordinate in parallel and execute state transitions securely.
+          </p>
+        </div>
+        <div className="max-w-5xl mx-auto">
+          <AgentFlowVisual />
+        </div>
+      </section>
+
+      {/* ─── Bulk Outreach & Setup Section ─── */}
+      <section className="max-w-7xl mx-auto px-6 sm:px-12 py-16 border-t border-white/5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.65fr_1fr] gap-10 items-start">
+          {/* Left Column: Bulk Campaign Engine */}
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <h2
+                style={{
+                  fontSize: 'clamp(24px, 3.5vw, 36px)',
+                  fontWeight: 500,
+                  lineHeight: 1.1,
+                  letterSpacing: '-1.5px',
+                }}
+              >
+                Bulk Outreach Campaign <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontWeight: 'normal' }}>Engine</span>
+              </h2>
+              <p className="text-xs text-[#999999] leading-relaxed max-w-xl">
+                Send bulk personalized emails via secure SMTP pipelines with live delivery progress streams and threaded follow-up campaigns.
+              </p>
+            </div>
+            <BulkEmailerVisual />
+          </div>
+
+          {/* Right Column: Connect & Setup Onboarding */}
+          <div className="space-y-6 border-t lg:border-t-0 lg:border-l border-white/5 pt-8 lg:pt-0 lg:pl-10">
+            <div className="space-y-2">
+              <h2
+                style={{
+                  fontSize: 'clamp(24px, 3.5vw, 36px)',
+                  fontWeight: 500,
+                  lineHeight: 1.1,
+                  letterSpacing: '-1.5px',
+                }}
+              >
+                Connect & <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontWeight: 'normal' }}>Setup</span> Guide
+              </h2>
+              <p className="text-xs text-[#999999] leading-relaxed max-w-md">
+                Retrieve your API keys, credentials, and Gmail connection variables in four short steps to activate the assistant.
+              </p>
+            </div>
+            <SetupOnboardingVisual />
+          </div>
+        </div>
+      </section>
+
       {/* ─── Features Grid ─── */}
       <section id="features" className="max-w-7xl mx-auto px-6 sm:px-12 py-24">
         <h2
@@ -202,7 +322,7 @@ export function LandingPage() {
             letterSpacing: '-3.1px',
           }}
         >
-          Built to think, not just reply
+          Built to <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: 'italic', fontWeight: 'normal' }}>think</span>, not just reply
         </h2>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
