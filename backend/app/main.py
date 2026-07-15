@@ -4,7 +4,7 @@ from app.db.session import init_pool
 from app.agents.graph import get_compiled_graph, close_compiled_graph
 from app.notifications.websocket import manager
 from app.jobs.cron_scheduler import start_cron_scheduler, stop_cron_scheduler
-from app.routers import chat, approvals, auth, cron
+from app.routers import chat, approvals, auth, cron, bulk_email
 
 app = FastAPI(
     title="Mail Agent API",
@@ -57,6 +57,7 @@ app.include_router(chat.router)
 app.include_router(approvals.router)
 app.include_router(auth.router)
 app.include_router(cron.router)
+app.include_router(bulk_email.router)
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):

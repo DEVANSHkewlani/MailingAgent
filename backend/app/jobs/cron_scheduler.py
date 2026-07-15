@@ -170,6 +170,10 @@ async def _scheduler_loop():
             )
             for row in rows:
                 asyncio.create_task(run_cron_job(row["id"]))
+            
+            # Reconcile stuck sends in background thread on each tick
+            from app.jobs.reconcile_sends import reconcile_stuck_sends
+            asyncio.create_task(asyncio.to_thread(reconcile_stuck_sends))
         except Exception as exc:
             print(f"Cron scheduler tick failed: {exc}")
 

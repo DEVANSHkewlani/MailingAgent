@@ -1,171 +1,364 @@
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { Download, ArrowRight, Zap, Shield, Cpu, GitBranch, Clock, Mail } from 'lucide-react'
+
 /**
- * LandingPage Page — product marketing landing website.
- * Replicates the vivid blue backdrop, serif headings, download buttons,
- * and woodcut line illustration from photo 4.
+ * LandingPage — Framer dark-canvas marketing page.
+ * Design tokens: DESIGN.md (canvas #090909, surface-1 #141414, ink #ffffff,
+ * ink-muted #999999, accent-blue #0099ff, gradient spotlight cards).
+ * Typography: Inter Variable body, display headlines with tight negative tracking.
+ * CTAs: White pill primary, charcoal pill secondary.
  */
 
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Download, Copy, Check, ExternalLink } from 'lucide-react'
-import { Button } from '../components/ui/button'
-
 export function LandingPage() {
-  const [copied, setCopied] = useState(false)
-  const installCmd = 'curl -fsSL https://mailing-agent.com/install.sh | bash'
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [installable, setInstallable] = useState(false)
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(installCmd)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  useEffect(() => {
+    document.body.classList.add('scrollable-body')
+    document.documentElement.classList.add('scrollable-body')
+
+    const handler = (e: Event) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+      setInstallable(true)
+    }
+    window.addEventListener('beforeinstallprompt', handler as any)
+
+    return () => {
+      document.body.classList.remove('scrollable-body')
+      document.documentElement.classList.remove('scrollable-body')
+      window.removeEventListener('beforeinstallprompt', handler as any)
+    }
+  }, [])
+
+  const scrollTo = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt()
+      const result = await deferredPrompt.userChoice
+      if (result.outcome === 'accepted') {
+        setInstallable(false)
+        setDeferredPrompt(null)
+      }
+    } else {
+      // Fallback for browsers without beforeinstallprompt (Safari, Firefox)
+      alert(
+        'To install as a desktop app:\n\n' +
+        '• Chrome/Edge: Click the install icon in the address bar\n' +
+        '• Safari: Share → Add to Home Screen\n' +
+        '• Firefox: Not yet supported — bookmark this page instead'
+      )
+    }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#004ef0] via-[#002ca8] to-[#01083c] text-white flex flex-col justify-between font-sans select-none overflow-x-hidden">
-      {/* Navigation Header */}
-      <header className="flex items-center justify-between px-6 sm:px-12 py-6 border-b border-white/5 select-none">
-        <div className="flex items-center gap-1.5 font-serif text-lg font-bold tracking-wider select-none">
-          <span>✉ MAILING AGENT</span>
-        </div>
-        <nav className="flex items-center gap-6 sm:gap-10 text-[10px] tracking-wider uppercase font-bold text-white/70">
-          <a href="#features" className="hover:text-white transition-colors">Features</a>
-          <a href="#docs" className="hover:text-white transition-colors">Docs</a>
-          <Link to="/app" className="hover:text-white transition-colors">Dashboard</Link>
-          <a href="#install" className="hover:text-white transition-colors flex items-center gap-1">
-            Install <ExternalLink className="size-3" />
-          </a>
+    <div
+      className="min-h-screen overflow-x-hidden relative"
+      style={{
+        background: '#090909',
+        color: '#ffffff',
+        fontFamily: "'Inter', sans-serif",
+        fontFeatureSettings: "'cv11', 'ss03', 'ss07'",
+      }}
+    >
+      {/* ─── Top Nav ─── */}
+      <header
+        className="sticky top-0 z-50 flex items-center justify-between px-6 sm:px-12"
+        style={{
+          height: 56,
+          background: 'rgba(9,9,9,0.85)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid #1a1a1a',
+        }}
+      >
+        <span
+          className="font-semibold tracking-tight select-none"
+          style={{ fontSize: 14, letterSpacing: '-0.14px' }}
+        >
+          ✉ Mailing Agent
+        </span>
+        <nav className="flex items-center gap-8">
+          <button
+            onClick={() => scrollTo('features')}
+            className="cursor-pointer focus:outline-none"
+            style={{ fontSize: 14, fontWeight: 500, color: '#999999', letterSpacing: '-0.14px' }}
+          >
+            Features
+          </button>
+          <Link
+            to="/docs"
+            style={{ fontSize: 14, fontWeight: 500, color: '#999999', letterSpacing: '-0.14px' }}
+          >
+            Docs
+          </Link>
+          <Link to="/app">
+            <button
+              style={{
+                background: '#ffffff',
+                color: '#000000',
+                fontSize: 14,
+                fontWeight: 500,
+                letterSpacing: '-0.14px',
+                borderRadius: 100,
+                padding: '10px 15px',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Launch App
+            </button>
+          </Link>
         </nav>
       </header>
 
-      {/* Main Content Body */}
-      <main className="flex-1 max-w-7xl mx-auto px-6 sm:px-12 py-16 grid grid-cols-1 lg:grid-cols-2 items-center gap-12">
-        {/* Left Column Description */}
-        <div className="space-y-8 max-w-xl text-left">
-          <div className="space-y-1">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-white/50 block">
-              Open Source • MIT License
-            </span>
-            <h2 className="font-serif text-5xl sm:text-6xl font-extrabold leading-[1.1] tracking-tight">
-              THE INBOX<br />THAT WORKS<br />FOR YOU
-            </h2>
-          </div>
-          
-          <p className="text-xs leading-6 text-white/80 max-w-md font-mono">
-            A self-learning email assistant and calendar synchronizer powered by LangGraph. It categorizes threads, drafts stylistic replies, checks scheduling conflicts, and prompts for your permission before executing sends.
-          </p>
+      {/* ─── Hero ─── */}
+      <section className="max-w-7xl mx-auto px-6 sm:px-12 pt-24 pb-20 text-center">
+        <h1
+          className="mx-auto"
+          style={{
+            fontSize: 'clamp(42px, 7vw, 85px)',
+            fontWeight: 500,
+            lineHeight: 0.95,
+            letterSpacing: '-4.25px',
+            maxWidth: 900,
+          }}
+        >
+          The inbox that works for you
+        </h1>
+        <p
+          className="mx-auto mt-6"
+          style={{
+            fontSize: 18,
+            fontWeight: 400,
+            lineHeight: 1.3,
+            letterSpacing: '-0.18px',
+            color: '#999999',
+            maxWidth: 560,
+          }}
+        >
+          A self-learning email assistant powered by LangGraph. It categorizes,
+          drafts, summarizes, and waits for your approval before sending.
+        </p>
 
-          {/* Action Buttons */}
-          <div className="space-y-5 pt-2">
-            <div>
-              <label className="text-[9px] uppercase font-bold tracking-wider text-white/40 block mb-2 select-none">
-                Install Desktop Client
-              </label>
-              <div className="flex flex-wrap gap-3">
-                <Link to="/app">
-                  <Button className="bg-white hover:bg-white/95 text-[#002ca8] hover:-translate-y-0.5 active:translate-y-0 font-bold px-6 py-5 rounded-lg text-xs uppercase shadow-md transition-all duration-200 flex items-center gap-2">
-                    <Download className="size-4" />
-                    Open Web App
-                  </Button>
-                </Link>
-                <Button className="border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 hover:-translate-y-0.5 active:translate-y-0 font-bold px-6 py-5 rounded-lg text-xs uppercase shadow-sm transition-all duration-200 flex items-center gap-2">
-                  <Download className="size-4" />
-                  Download for Mac OS
-                </Button>
-              </div>
-            </div>
-
-            {/* Install code box */}
-            <div className="max-w-md select-text" id="install">
-              <label className="text-[9px] uppercase font-bold tracking-wider text-white/40 block mb-2 select-none">
-                Install via Terminal
-              </label>
-              <div className="flex items-center justify-between bg-black/25 border border-white/5 rounded-lg px-4 py-2.5 font-mono text-[10px] leading-none text-white/80">
-                <span className="truncate">{installCmd}</span>
-                <button
-                  onClick={copyToClipboard}
-                  className="text-white/60 hover:text-white transition-colors ml-4 focus:outline-none select-none"
-                >
-                  {copied ? <Check className="size-4 text-[var(--ui-green)]" /> : <Copy className="size-4" />}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column Woodcut Illustration (SVG Etching representation like photo 4) */}
-        <div className="flex justify-center select-none lg:justify-end">
-          <svg
-            className="w-[22rem] sm:w-[32rem] h-auto text-white/90 drop-shadow-2xl"
-            viewBox="0 0 500 500"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        {/* CTA Pills */}
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-10">
+          <Link to="/app">
+            <button
+              style={{
+                background: '#ffffff',
+                color: '#000000',
+                fontSize: 14,
+                fontWeight: 500,
+                letterSpacing: '-0.14px',
+                borderRadius: 100,
+                padding: '12px 24px',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Launch Web App
+              <ArrowRight className="inline-block ml-2 size-4" style={{ verticalAlign: 'middle' }} />
+            </button>
+          </Link>
+          <button
+            onClick={handleInstall}
+            style={{
+              background: '#141414',
+              color: '#ffffff',
+              fontSize: 14,
+              fontWeight: 500,
+              letterSpacing: '-0.14px',
+              borderRadius: 100,
+              padding: '12px 24px',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
-            {/* Sun rays center background */}
-            <circle cx="250" cy="250" r="10" fill="currentColor" opacity="0.4" />
-            <circle cx="250" cy="250" r="160" strokeDasharray="3 6" opacity="0.15" />
-            <circle cx="250" cy="250" r="220" opacity="0.1" />
-
-            {/* Line extensions radiating out */}
-            {Array.from({ length: 48 }).map((_, i) => {
-              const angle = (i * 360) / 48
-              const rad = (angle * Math.PI) / 180
-              const x1 = 250 + Math.cos(rad) * 40
-              const y1 = 250 + Math.sin(rad) * 40
-              const x2 = 250 + Math.cos(rad) * 240
-              const y2 = 250 + Math.sin(rad) * 240
-              return (
-                <line
-                  key={i}
-                  x1={x1}
-                  y1={y1}
-                  x2={x2}
-                  y2={y2}
-                  opacity={i % 4 === 0 ? '0.2' : '0.08'}
-                />
-              )
-            })}
-
-            {/* Fine etchings / woodcut outline grid overlays */}
-            <path
-              d="M 120,250 C 120,120 380,120 380,250 C 380,380 120,380 120,250"
-              strokeDasharray="2 4"
-              opacity="0.15"
-            />
-            
-            {/* Graphic vector representation of multiple-armed winged envelope/messenger */}
-            {/* Central envelope / shield */}
-            <rect x="200" y="210" width="100" height="70" rx="6" strokeWidth="1.5" />
-            <path d="M 200,212 L 250,250 L 300,212" strokeWidth="1.5" />
-            <path d="M 200,278 L 240,248" />
-            <path d="M 300,278 L 260,248" />
-
-            {/* Multiple wings (Mercury wings representation) */}
-            {/* Wing 1 Left */}
-            <path d="M 200,220 C 150,200 120,230 90,260 C 130,265 170,255 200,245" strokeWidth="1.2" />
-            <path d="M 180,230 C 140,215 120,235 100,255" opacity="0.6" />
-            <path d="M 160,238 C 130,225 110,242 105,250" opacity="0.4" />
-            
-            {/* Wing 1 Right */}
-            <path d="M 300,220 C 350,200 380,230 410,260 C 370,265 330,255 300,245" strokeWidth="1.2" />
-            <path d="M 320,230 C 360,215 380,235 400,255" opacity="0.6" />
-            <path d="M 340,238 C 370,225 390,242 395,250" opacity="0.4" />
-
-            {/* Additional lower arms/wings for high-detail woodcut feel */}
-            <path d="M 200,255 C 140,260 110,290 80,330 C 120,320 160,295 200,270" strokeWidth="1.2" />
-            <path d="M 300,255 C 360,260 390,290 420,330 C 380,320 340,295 300,270" strokeWidth="1.2" />
-
-            {/* Upper rays and halo circles */}
-            <circle cx="250" cy="180" r="30" strokeDasharray="1 3" opacity="0.3" />
-            <path d="M 230,180 L 270,180 M 250,160 L 250,200" opacity="0.4" />
-          </svg>
+            <Download className="inline-block mr-2 size-4" style={{ verticalAlign: 'middle' }} />
+            {installable ? 'Install as Desktop App' : 'Install App'}
+          </button>
         </div>
-      </main>
 
-      {/* Footer */}
-      <footer className="text-center py-8 text-xs text-white/50 border-t border-white/10 select-none">
-        <span>© 2026 Mailing Agent. Built by Nous Research guidelines. MIT License.</span>
+        <p
+          className="mt-4"
+          style={{ fontSize: 12, color: '#999999', letterSpacing: '-0.12px' }}
+        >
+          Open Source · MIT License
+        </p>
+      </section>
+
+      {/* ─── Features Grid ─── */}
+      <section id="features" className="max-w-7xl mx-auto px-6 sm:px-12 py-24">
+        <h2
+          className="text-center mb-16"
+          style={{
+            fontSize: 'clamp(32px, 5vw, 62px)',
+            fontWeight: 500,
+            lineHeight: 1.0,
+            letterSpacing: '-3.1px',
+          }}
+        >
+          Built to think, not just reply
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {/* Feature Cards — charcoal surface */}
+          {[
+            {
+              icon: <Cpu className="size-5" />,
+              title: 'Multi-Agent System',
+              desc: 'A LangGraph-powered graph of specialized workers — reader, categorizer, drafter, summarizer, executor — coordinated by a supervisor router.',
+            },
+            {
+              icon: <Shield className="size-5" />,
+              title: 'Human-in-the-Loop Safety',
+              desc: 'Every risky action requires HMAC-signed approval. Low-risk operations auto-execute. Cron tasks bypass with cryptographic is_cron tokens.',
+            },
+            {
+              icon: <Mail className="size-5" />,
+              title: 'Smart Categorization',
+              desc: 'Emails are classified into urgent, action_needed, newsletter, personal, and more — then labeled directly in your Gmail inbox.',
+            },
+            {
+              icon: <GitBranch className="size-5" />,
+              title: 'Style-Aware Drafting',
+              desc: 'Reply drafts match your writing style using stored profiles — font, tone, signature, and HTML formatting preserved.',
+            },
+            {
+              icon: <Clock className="size-5" />,
+              title: 'Background Cron Engine',
+              desc: 'Schedule any instruction to run periodically. The dual-loop engine ticks every 30s and self-heals stuck sends every 10 minutes.',
+            },
+            {
+              icon: <Zap className="size-5" />,
+              title: 'Webhook Notifications',
+              desc: 'Push cron summaries to WhatsApp (via Twilio), Slack, Discord, or any custom webhook endpoint in real time.',
+            },
+          ].map((f, i) => (
+            <div
+              key={i}
+              style={{
+                background: '#141414',
+                border: '1px solid #262626',
+                borderRadius: 20,
+                padding: 24,
+              }}
+            >
+              <div style={{ color: '#999999', marginBottom: 12 }}>{f.icon}</div>
+              <h3
+                style={{
+                  fontSize: 22,
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                  letterSpacing: '-0.8px',
+                  marginBottom: 8,
+                }}
+              >
+                {f.title}
+              </h3>
+              <p
+                style={{
+                  fontSize: 15,
+                  fontWeight: 400,
+                  lineHeight: 1.3,
+                  letterSpacing: '-0.15px',
+                  color: '#999999',
+                }}
+              >
+                {f.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Gradient Spotlight Card — signature atmospheric panel */}
+        <div
+          className="mt-5 relative overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, #6a4cf5 0%, #d44df0 50%, #ff7a3d 100%)',
+            borderRadius: 30,
+            padding: 32,
+          }}
+        >
+          <div
+            className="absolute top-0 right-0 rounded-full pointer-events-none"
+            style={{
+              width: 300,
+              height: 300,
+              background: 'rgba(255,255,255,0.08)',
+              filter: 'blur(80px)',
+            }}
+          />
+          <h3
+            style={{
+              fontSize: 24,
+              fontWeight: 400,
+              lineHeight: 1.3,
+              letterSpacing: '-0.01px',
+              maxWidth: 500,
+              position: 'relative',
+            }}
+          >
+            Deploy once, run anywhere — as a hosted web app or a native
+            desktop client with Electron.
+          </h3>
+          <div className="flex gap-3 mt-6 relative">
+            <Link to="/app">
+              <button
+                style={{
+                  background: '#ffffff',
+                  color: '#000000',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  letterSpacing: '-0.14px',
+                  borderRadius: 100,
+                  padding: '10px 15px',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Try it now
+              </button>
+            </Link>
+            <Link to="/docs">
+              <button
+                style={{
+                  background: '#1c1c1c',
+                  color: '#ffffff',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  letterSpacing: '-0.14px',
+                  borderRadius: 30,
+                  padding: '10px 15px',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Read the docs
+              </button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Footer ─── */}
+      <footer
+        className="text-center px-6 sm:px-12"
+        style={{
+          padding: '64px 32px',
+          borderTop: '1px solid #1a1a1a',
+          fontSize: 13,
+          fontWeight: 500,
+          lineHeight: 1.2,
+          letterSpacing: '-0.13px',
+          color: '#999999',
+        }}
+      >
+        © 2026 Mailing Agent · MIT License · Built with LangGraph
       </footer>
     </div>
   )

@@ -118,11 +118,27 @@ async def categorizer_agent_node(state: MailAgentState) -> dict:
     # Update database cache using provider_message_id
     from uuid import UUID
     user_uuid = UUID(state["user_id"])
+    pending_approvals = []
     for r in resolved:
         await db.execute(
             "UPDATE email_cache SET category = $1, category_confidence = $2 "
             "WHERE provider_message_id = $3 AND user_id = $4",
             r["category"], r.get("confidence"), str(r["email_id"]), user_uuid
         )
+        if r["category"] != "uncategorized":
+            email_item = next((e for e in emails if e["id"] == r["email_id"]), None)
+            subject = email_item.get("subject", "No Subject") if email_item else "No Subject"
+            pending_approvals.append({
+                "type": "apply_label",
+                "resource": str(r["email_id"]),
+                "payload": {
+                    "message_id": str(r["email_id"]),
+                    "label": r["category"]
+                },
+                "reasoning": f"Automatically categorize email '{subject}' as '{r['category']}'."
+            })
 
-    return {"completed_tasks": [{"agent": "categorizer", "count": len(resolved)}]}
+    return {
+        "pending_approvals": pending_approvals,
+        "completed_tasks": [{"agent": "categorizer", "count": len(resolved)}]
+    }

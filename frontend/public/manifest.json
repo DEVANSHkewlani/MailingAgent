@@ -1,16 +1,25 @@
 {
+  "name": "Mailing Agent",
   "short_name": "MailAgent",
-  "name": "Mailing Agent - AI Assistant",
+  "description": "AI-powered email assistant with bulk sending, categorization, and smart drafting.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "orientation": "any",
   "icons": [
     {
-      "src": "favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any"
+      "src": "/mail-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/mail-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
-  "start_url": ".",
-  "background_color": "#f8faff",
-  "theme_color": "#0053fd",
-  "display": "standalone",
-  "orientation": "portrait"
+  "categories": ["productivity", "utilities"]
 }

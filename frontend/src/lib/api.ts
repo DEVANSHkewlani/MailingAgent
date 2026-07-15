@@ -289,3 +289,124 @@ export async function saveGroqSettings(userId: string, key: string): Promise<{ s
   return response.json()
 }
 
+
+// ─── Bulk Emailer API ────────────────────────────────────────────────────────
+
+export interface BulkSMTPConfig {
+  host: string
+  port: number
+  email: string
+  password: string
+}
+
+export interface BulkContact {
+  email: string
+  name?: string
+  extra?: Record<string, string>
+}
+
+export interface BulkComposePayload {
+  from_name?: string
+  reply_to?: string
+  cc?: string
+  subject: string
+  body_html: string
+  signature?: string
+  signature_enabled?: boolean
+}
+
+export interface BulkSendRequest {
+  smtp: BulkSMTPConfig
+  compose: BulkComposePayload
+  contacts: BulkContact[]
+  column_map?: { email?: string; name?: string; company?: string; role?: string; city?: string }
+  delay_seconds?: number
+  campaign_name?: string
+}
+
+export interface BulkRecipientResult {
+  email: string
+  name: string
+  subject: string
+  ok: boolean
+  error?: string | null
+  message_id?: string | null
+}
+
+export interface BulkSendProgress {
+  total: number
+  sent: number
+  failed: number
+  current: number
+  done: boolean
+  stopped: boolean
+  result?: BulkRecipientResult | null
+}
+
+export interface BulkHistoryEntry {
+  job_id: string
+  campaign_name?: string | null
+  started_at: string
+  total: number
+  sent: number
+  failed: number
+  stopped: boolean
+  done: boolean
+}
+
+export async function testBulkSmtp(cfg: BulkSMTPConfig) {
+  const response = await fetch(`${API_BASE_URL}/api/bulk-email/smtp-test`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cfg),
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function uploadBulkCsv(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await fetch(`${API_BASE_URL}/api/bulk-email/upload-csv`, {
+    method: 'POST',
+    body: formData,
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json() as Promise<{ contacts: Record<string, string>[]; columns: string[]; count: number }>
+}
+
+export async function startBulkCampaign(request: BulkSendRequest) {
+  const response = await fetch(`${API_BASE_URL}/api/bulk-email/send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json() as Promise<{ job_id: string; total: number }>
+}
+
+export function streamBulkProgress(jobId: string): EventSource {
+  return new EventSource(`${API_BASE_URL}/api/bulk-email/stream/${jobId}`)
+}
+
+export async function stopBulkCampaign(jobId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/bulk-email/stop/${jobId}`, { method: 'POST' })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function fetchBulkHistory(): Promise<BulkHistoryEntry[]> {
+  const response = await fetch(`${API_BASE_URL}/api/bulk-email/history`)
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}
+
+export async function sendBulkTestEmail(smtp: BulkSMTPConfig, compose: BulkComposePayload, to: string) {
+  const response = await fetch(`${API_BASE_URL}/api/bulk-email/test-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ smtp, compose, to }),
+  })
+  if (!response.ok) throw new Error(await response.text())
+  return response.json()
+}

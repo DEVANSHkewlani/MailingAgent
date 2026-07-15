@@ -30,7 +30,16 @@ export async function loadConversations(userId: string) {
     const list = await fetchConversations(userId)
     $conversations.set(list)
     if (list.length > 0 && !$activeConversationId.get()) {
-      await selectConversation(list[0].conversation_id)
+      // Skip cron-generated conversations for the initial auto-select
+      const userChat = list.find(c =>
+        !c.title.toLowerCase().startsWith('cron:') &&
+        !c.title.toLowerCase().startsWith('[cron]') &&
+        !c.title.toLowerCase().startsWith('background:')
+      )
+      if (userChat) {
+        await selectConversation(userChat.conversation_id)
+      }
+      // If only cron chats exist, show the empty welcome screen instead
     }
   } catch (err: any) {
     $chatError.set(err.message || 'Failed to fetch conversations')

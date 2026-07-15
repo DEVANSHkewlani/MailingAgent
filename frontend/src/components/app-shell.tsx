@@ -12,7 +12,7 @@ import { ChatSidebar } from './chat-sidebar'
 import { ChatPanel } from './chat-panel'
 import { InboxView } from './views/inbox-view'
 import { ApprovalsView } from './views/approvals-view'
-import { CalendarView } from './views/calendar-view'
+import { BulkEmailerView } from './views/bulk-emailer-view'
 import { CronJobsView } from './views/cron-jobs-view'
 import { SettingsView } from './settings'
 import { loadConversations } from '../store/chat'
@@ -89,7 +89,7 @@ export function AppShell() {
               <Menu className="size-5" />
             </button>
             <span className="font-mono text-xs font-semibold tracking-wide text-primary">
-              ✉ {activeView === 'chat' ? 'INBOX & CHAT' : activeView === 'approvals' ? 'APPROVALS & DRAFTS' : activeView === 'calendar' ? 'CALENDAR ALERTS' : 'CRON JOBS'}
+              ✉ {activeView === 'chat' ? 'INBOX & CHAT' : activeView === 'approvals' ? 'APPROVALS & DRAFTS' : activeView === 'bulk-email' ? 'BULK EMAILER' : 'CRON JOBS'}
             </span>
           </div>
 
@@ -151,7 +151,7 @@ export function AppShell() {
           )}
           
           {activeView === 'approvals' && <ApprovalsView />}
-          {activeView === 'calendar' && <CalendarView />}
+          {activeView === 'bulk-email' && <BulkEmailerView />}
           {activeView === 'cron' && <CronJobsView />}
         </div>
       </main>

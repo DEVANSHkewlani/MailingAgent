@@ -79,6 +79,7 @@ async def list_emails(user_id: str, limit: int = 20):
             "subject": r["subject"] or "(no subject)",
             "preview": r["snippet"] or "",
             "time": r["received_at"].isoformat() if r["received_at"] else "",
+            "category": r["category"] or "uncategorized",
             "unread": r["category"] == "action_needed"
         }
         for r in rows

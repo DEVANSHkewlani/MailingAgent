@@ -21,6 +21,30 @@ class MailProviderProxy:
 gmail_client = MailProviderProxy()
 
 
+def clean_body_text(text: str) -> str:
+    import html
+    import re
+    if not text:
+        return ""
+    # Unescape all HTML entities (handles things like &amp;, &#8199;, etc.)
+    text = html.unescape(text)
+    
+    # Strip zero-width/invisible formatting characters
+    # \u200b-\u200d: zero-width space/non-joiner/joiner
+    # \ufeff: zero-width no-break space / BOM
+    # \u034f: combining grapheme joiner
+    # \u2060-\u206f: invisible formatting characters
+    # \u2007: figure space
+    # \u202f: narrow no-break space
+    invisible_chars = re.compile(r'[\u200b-\u200d\ufeff\u034f\u2060-\u206f\u2007\u202f\u180e]')
+    text = invisible_chars.sub('', text)
+    
+    # Collapse multiple consecutive blank lines or spaces to keep it clean
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
+    return text.strip()
+
+
 class GmailProvider(MailProvider):
     def __init__(self, credentials):
         self.service = build("gmail", "v1", credentials=credentials)
@@ -46,7 +70,7 @@ class GmailProvider(MailProvider):
                 "thread_id": thread_id,
                 "sender": sender,
                 "subject": subject,
-                "snippet": m.get("snippet", ""),
+                "snippet": clean_body_text(m.get("snippet", "")),
                 "labels": m.get("labelIds", []),
                 "received_at": m.get("internalDate") # timestamp milliseconds
             })
@@ -155,10 +179,6 @@ class GmailProvider(MailProvider):
                             return txt
                 return ""
 
-            body = _extract_plain_text(payload)
-            if body and body.strip():
-                return body
-
             def _extract_html_text(part) -> str:
                 mime_type = part.get("mimeType", "")
                 body_data = part.get("body", {}).get("data", "")
@@ -186,11 +206,17 @@ class GmailProvider(MailProvider):
                             return txt
                 return ""
 
-            body = _extract_html_text(payload)
+            raw_body = ""
+            body = _extract_plain_text(payload)
             if body and body.strip():
-                return body
-
-            return msg.get("snippet", "")
+                raw_body = body
+            else:
+                body = _extract_html_text(payload)
+                if body and body.strip():
+                    raw_body = body
+                else:
+                    raw_body = msg.get("snippet", "")
+            return clean_body_text(raw_body)
         except Exception as e:
             print(f"GmailProvider: Failed to fetch message body: {e}")
             return ""
@@ -221,7 +247,7 @@ class GmailProvider(MailProvider):
                     "thread_id": m.thread_id,
                     "sender": sender,
                     "subject": subject,
-                    "snippet": msg_detail.get("snippet", ""),
+                    "snippet": clean_body_text(msg_detail.get("snippet", "")),
                     "labels": msg_detail.get("labelIds", []),
                     "received_at": received_at
                 })

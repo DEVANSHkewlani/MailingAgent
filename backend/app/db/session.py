@@ -91,6 +91,7 @@ class SyncDatabaseWrapper:
     def __init__(self, pool):
         self.pool = pool
         self._current_user_id = None
+        self._conn = None
 
     @property
     def current_user_id(self):
@@ -106,14 +107,82 @@ class SyncDatabaseWrapper:
                 self.wrapper = wrapper
 
             def __enter__(self):
+                async def acquire_conn():
+                    return await self.wrapper.pool.acquire()
+                
+                try:
+                    current_loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    current_loop = None
+
+                if _main_loop is not None and _main_loop.is_running() and current_loop != _main_loop:
+                    future = asyncio.run_coroutine_threadsafe(acquire_conn(), _main_loop)
+                    conn = future.result()
+                elif current_loop is None:
+                    conn = asyncio.run(acquire_conn())
+                else:
+                    import threading
+                    from queue import Queue
+                    q = Queue()
+                    def worker():
+                        try:
+                            res = asyncio.run(acquire_conn())
+                            q.put((True, res))
+                        except Exception as e:
+                            q.put((False, e))
+                    t = threading.Thread(target=worker)
+                    t.start()
+                    t.join()
+                    success, val = q.get()
+                    if success:
+                        conn = val
+                    else:
+                        raise val
+
+                self.wrapper._conn = conn
                 self.wrapper.execute("BEGIN")
                 return self
 
             def __exit__(self, exc_type, exc_val, exc_tb):
-                if exc_type is not None:
-                    self.wrapper.execute("ROLLBACK")
-                else:
-                    self.wrapper.execute("COMMIT")
+                try:
+                    if exc_type is not None:
+                        self.wrapper.execute("ROLLBACK")
+                    else:
+                        self.wrapper.execute("COMMIT")
+                finally:
+                    async def release_conn(conn):
+                        await self.wrapper.pool.release(conn)
+
+                    conn = self.wrapper._conn
+                    self.wrapper._conn = None
+
+                    if conn:
+                        try:
+                            current_loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            current_loop = None
+
+                        if _main_loop is not None and _main_loop.is_running() and current_loop != _main_loop:
+                            future = asyncio.run_coroutine_threadsafe(release_conn(conn), _main_loop)
+                            future.result()
+                        elif current_loop is None:
+                            asyncio.run(release_conn(conn))
+                        else:
+                            import threading
+                            from queue import Queue
+                            q = Queue()
+                            def worker():
+                                try:
+                                    asyncio.run(release_conn(conn))
+                                    q.put((True, None))
+                                except Exception as e:
+                                    q.put((False, e))
+                            t = threading.Thread(target=worker)
+                            t.start()
+                            t.join()
+                            success, val = q.get()
+                            if not success:
+                                raise val
                 return False
         return TransactionContext(self)
 
@@ -123,29 +192,32 @@ class SyncDatabaseWrapper:
         elif not isinstance(params, (list, tuple)):
             params = (params,)
 
-        # Convert %s placeholders to $1, $2, $3...
         query_pg = query
         count = 1
         while "%s" in query_pg:
             query_pg = query_pg.replace("%s", f"${count}", 1)
             count += 1
 
-        # Run async query in sync context
         async def _run():
-            async with self.pool.acquire() as conn:
+            if self._conn is not None:
                 if "SELECT" in query_pg.upper() or "RETURNING" in query_pg.upper():
-                    rows = await conn.fetch(query_pg, *params)
+                    rows = await self._conn.fetch(query_pg, *params)
                     return SyncResult(rows)
                 else:
-                    await conn.execute(query_pg, *params)
+                    await self._conn.execute(query_pg, *params)
                     return SyncResult([])
+            else:
+                async with self.pool.acquire() as conn:
+                    if "SELECT" in query_pg.upper() or "RETURNING" in query_pg.upper():
+                        rows = await conn.fetch(query_pg, *params)
+                        return SyncResult(rows)
+                    else:
+                        await conn.execute(query_pg, *params)
+                        return SyncResult([])
 
-        # Helper function to instantiate the coroutine on the target loop
         async def _run_on_loop(func):
             return await func()
 
-        # If we are in a worker thread and _main_loop is available and running,
-        # run the coroutine in _main_loop.
         try:
             current_loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -156,10 +228,8 @@ class SyncDatabaseWrapper:
             return future.result()
 
         if current_loop is None:
-            # No running loop in this thread, safe to use asyncio.run
             return asyncio.run(_run())
         
-        # Fallback: If loop is already running in this thread, run in a separate thread to prevent blocking/nesting issues
         import threading
         from queue import Queue
 

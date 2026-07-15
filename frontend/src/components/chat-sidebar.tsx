@@ -8,7 +8,7 @@ import { useStore } from '@nanostores/react'
 import {
   Inbox,
   ShieldCheck,
-  Calendar,
+  Mail,
   Clock3,
   Plus,
   Settings,
@@ -22,7 +22,7 @@ import { $activeView, $sidebarOpen, openSettings } from '../store/layout'
 import { cn } from '../lib/utils'
 
 interface NavItem {
-  id: 'chat' | 'approvals' | 'calendar' | 'cron'
+  id: 'chat' | 'approvals' | 'bulk-email' | 'cron'
   label: string
   icon: any
   count?: number
@@ -41,7 +41,7 @@ export function ChatSidebar() {
   const navItems: NavItem[] = [
     { id: 'chat', label: 'Inbox & Chat', icon: Inbox },
     { id: 'approvals', label: 'Approvals & Drafts', icon: ShieldCheck, count: pendingApprovalsCount },
-    { id: 'calendar', label: 'Calendar Alerts', icon: Calendar },
+    { id: 'bulk-email', label: 'Bulk Emailer', icon: Mail },
     { id: 'cron', label: 'Cron Jobs', icon: Clock3 },
   ]
 

@@ -13,6 +13,7 @@ interface EmailItem {
   preview: string
   time: string
   unread: boolean
+  category?: string
 }
 
 /**
@@ -37,6 +38,27 @@ function formatEmailTime(isoString: string): string {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch {
     return isoString
+  }
+}
+
+function getCategoryBadgeStyle(category: string): string {
+  switch (category.toLowerCase()) {
+    case 'urgent':
+      return 'bg-red-500/10 text-red-500 border border-red-500/20'
+    case 'action_needed':
+    case 'action needed':
+      return 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+    case 'meeting_request':
+    case 'meeting request':
+      return 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+    case 'personal':
+      return 'bg-purple-500/10 text-purple-500 border border-purple-500/20'
+    case 'newsletter':
+      return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+    case 'fyi':
+      return 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
+    default:
+      return 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
   }
 }
 
@@ -194,7 +216,14 @@ export function InboxView() {
                     <span className={`font-bold ${email.unread ? 'text-primary' : 'text-(--ui-text-secondary)'}`}>
                       {email.from}
                     </span>
-                    <span className="text-(--ui-text-tertiary)">{formatEmailTime(email.time)}</span>
+                    <div className="flex items-center gap-1.5">
+                      {email.category && email.category !== 'uncategorized' && (
+                        <span className={`px-1.5 py-0.5 rounded text-[0.625rem] font-bold uppercase tracking-wider ${getCategoryBadgeStyle(email.category)}`}>
+                          {email.category.replace('_', ' ')}
+                        </span>
+                      )}
+                      <span className="text-(--ui-text-tertiary)">{formatEmailTime(email.time)}</span>
+                    </div>
                   </div>
                   <h4 className={`text-xs truncate ${email.unread ? 'font-bold text-foreground' : 'text-(--ui-text-secondary)'}`}>
                     {email.subject}
