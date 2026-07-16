@@ -140,33 +140,6 @@ export function LandingPage() {
         </header>
       </div>
 
-      {/* ─── Background Spotlight Gradients ─── */}
-      <div 
-        className="absolute pointer-events-none overflow-visible left-1/2 -translate-x-1/2"
-        style={{
-          top: '150px',
-          width: '800px',
-          height: '600px',
-          zIndex: 0,
-        }}
-      >
-        <div 
-          className="absolute w-[600px] h-[400px] rounded-full filter blur-[120px] opacity-40" 
-          style={{
-            background: 'radial-gradient(circle, rgba(37, 99, 235, 0.45) 0%, rgba(168, 85, 247, 0.3) 50%, rgba(236, 72, 153, 0) 100%)',
-            top: '0px',
-            left: '100px',
-          }}
-        />
-        <div 
-          className="absolute w-[500px] h-[350px] rounded-full filter blur-[100px] opacity-35" 
-          style={{
-            background: 'radial-gradient(circle, rgba(168, 85, 247, 0.4) 0%, rgba(37, 99, 235, 0.25) 60%, rgba(236, 72, 153, 0) 100%)',
-            top: '120px',
-            left: '150px',
-          }}
-        />
-      </div>
 
       {/* ─── Hero (Centered with Spotlights) ─── */}
       <section className="max-w-7xl mx-auto px-6 sm:px-12 min-h-[85vh] flex flex-col justify-center items-center text-center relative pt-28 pb-16 z-10">
