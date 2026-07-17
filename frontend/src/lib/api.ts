@@ -314,7 +314,8 @@ export interface BulkSMTPConfig {
   host: string
   port: number
   email: string
-  password: string
+  password?: string
+  user_id?: string
 }
 
 export interface BulkContact {

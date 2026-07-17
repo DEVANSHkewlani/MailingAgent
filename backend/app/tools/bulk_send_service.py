@@ -42,7 +42,8 @@ class SMTPConfig(BaseModel):
     host: str
     port: int
     email: str
-    password: str
+    password: Optional[str] = ""
+    user_id: Optional[str] = None
 
 
 class SMTPTestResult(BaseModel):
@@ -195,6 +196,28 @@ def build_message(
 # ─── SMTP Connection Helpers ─────────────────────────────────────────────────
 
 def _open_smtp(cfg: SMTPConfig, timeout: float = 60.0) -> smtplib.SMTP:
+    password = cfg.password
+    if (not password or password == "__SAVED_PASSWORD__") and cfg.user_id:
+        from app.db.session import get_db_sync
+        from cryptography.fernet import Fernet
+        from app.config import settings
+        import uuid
+        
+        try:
+            db = get_db_sync()
+            row = db.execute(
+                "SELECT smtp_password FROM users WHERE id = %s",
+                (cfg.user_id,)
+            ).fetchone()
+            if row and row.smtp_password:
+                fernet = Fernet(settings.token_encryption_key.encode())
+                password = fernet.decrypt(row.smtp_password.encode()).decode()
+                logger.info("Successfully decrypted saved SMTP password for user_id=%s", cfg.user_id)
+            else:
+                logger.warning("No saved SMTP password found for user_id=%s", cfg.user_id)
+        except Exception as e:
+            logger.error("Failed to decrypt saved SMTP password for user %s: %s", cfg.user_id, e)
+
     mode = _PORT_SECURITY.get(cfg.port, "starttls")
     if mode == "ssl":
         conn = smtplib.SMTP_SSL(cfg.host, cfg.port, timeout=timeout)
@@ -206,7 +229,7 @@ def _open_smtp(cfg: SMTPConfig, timeout: float = 60.0) -> smtplib.SMTP:
             conn.ehlo()
         except smtplib.SMTPNotSupportedError:
             logger.info("STARTTLS not supported on port %d", cfg.port)
-    conn.login(cfg.email, cfg.password)
+    conn.login(cfg.email, password or "")
     return conn
 
 

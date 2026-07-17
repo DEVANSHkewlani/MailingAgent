@@ -79,22 +79,35 @@ async def handle_callback(code: str, user_id: str):
             print(f"Google OAuth: Cleaned up temporary user ID {user_uuid}")
     else:
         # Ensure user exists in the database
-        user_row = await db.fetchrow("SELECT id FROM users WHERE id = $1", user_uuid)
+        user_row = await db.fetchrow("SELECT email FROM users WHERE id = $1", user_uuid)
         if not user_row:
             await db.execute(
                 "INSERT INTO users (id, email, display_name) VALUES ($1, $2, $3)",
                 user_uuid, email, display_name
             )
-            print(f"Google OAuth: Registered new user {email} (ID: {user_id})")
+            print(f"Google OAuth: Registered new user {email} (ID: {user_uuid})")
             # Seed default category rules for the new user
-            await seed_default_rules(user_id, db)
+            await seed_default_rules(str(user_uuid), db)
         else:
-            # Update user's email and display_name with Google profile data
-            await db.execute(
-                "UPDATE users SET email = $1, display_name = $2 WHERE id = $3",
-                email, display_name, user_uuid
-            )
-            print(f"Google OAuth: Updated user {user_id} profile with Gmail {email}")
+            # Check if this user already has an email associated, and if it's different.
+            # If so, create a NEW user with a fresh UUID to keep profiles partitioned.
+            if user_row["email"] and user_row["email"] != email:
+                import uuid as py_uuid
+                new_user_uuid = py_uuid.uuid4()
+                await db.execute(
+                    "INSERT INTO users (id, email, display_name) VALUES ($1, $2, $3)",
+                    new_user_uuid, email, display_name
+                )
+                print(f"Google OAuth: Created new user ID {new_user_uuid} for email {email} (previously session was {user_uuid})")
+                await seed_default_rules(str(new_user_uuid), db)
+                target_user_uuid = new_user_uuid
+            else:
+                # Update user's email and display_name with Google profile data
+                await db.execute(
+                    "UPDATE users SET email = $1, display_name = $2 WHERE id = $3",
+                    email, display_name, user_uuid
+                )
+                print(f"Google OAuth: Updated user {user_uuid} profile with Gmail {email}")
 
     # 2. Check if oauth credentials already exist for this user & provider, and update or insert
     existing = await db.fetchrow(

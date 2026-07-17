@@ -4,6 +4,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useStore } from '@nanostores/react'
+import { $userId } from '../../store/auth'
 import {
   Mail, Upload, Play, Square, FlaskConical, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, History, Settings2, FileText,
@@ -18,6 +20,7 @@ import {
   stopBulkCampaign,
   fetchBulkHistory,
   sendBulkTestEmail,
+  fetchSMTPSettings,
   type BulkSMTPConfig,
   type BulkComposePayload,
   type BulkSendProgress,
@@ -28,6 +31,7 @@ import {
 type Tab = 'compose' | 'history'
 
 export function BulkEmailerView() {
+  const userId = useStore($userId)
   const [tab, setTab] = useState<Tab>('compose')
 
   // ─── SMTP state ──────────────────────────────────────────────────────────
@@ -70,8 +74,8 @@ export function BulkEmailerView() {
   const [histLoading, setHistLoading] = useState(false)
 
   const smtpCfg: BulkSMTPConfig = useMemo(() => ({
-    host: smtpHost, port: smtpPort, email: smtpEmail, password: smtpPassword,
-  }), [smtpHost, smtpPort, smtpEmail, smtpPassword])
+    host: smtpHost, port: smtpPort, email: smtpEmail, password: smtpPassword, user_id: userId,
+  }), [smtpHost, smtpPort, smtpEmail, smtpPassword, userId])
 
   const composeCfg: BulkComposePayload = useMemo(() => ({
     from_name: fromName, reply_to: replyTo || undefined, cc: cc || undefined,
@@ -79,6 +83,23 @@ export function BulkEmailerView() {
   }), [fromName, replyTo, cc, subject, bodyHtml])
 
   const canSend = smtpOk && contacts.length > 0 && subject.trim().length > 0 && bodyHtml.trim().length > 0
+
+  // Load saved SMTP settings on mount
+  useEffect(() => {
+    fetchSMTPSettings(userId)
+      .then(cfg => {
+        if (cfg.configured) {
+          setSmtpHost(cfg.smtp_host || '')
+          setSmtpPort(cfg.smtp_port || 587)
+          setSmtpEmail(cfg.smtp_username || '')
+          if (cfg.has_password) {
+            setSmtpPassword('__SAVED_PASSWORD__')
+            setSmtpOk(true)
+          }
+        }
+      })
+      .catch(err => console.error("BulkEmailerView: Failed to load SMTP settings", err))
+  }, [userId])
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
