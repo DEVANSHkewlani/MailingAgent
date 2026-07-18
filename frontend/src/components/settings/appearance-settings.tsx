@@ -3,17 +3,14 @@
  * Ported from Hermes Agent appearance-settings.tsx (photo 3).
  */
 
-import { useStore } from '@nanostores/react'
 import { Palette, Sun, Moon, Monitor } from 'lucide-react'
 import { useTheme } from '../../themes/context'
-import { $translucency, setTranslucency } from '../../store/translucency'
 import { SegmentedControl } from '../ui/segmented-control'
 import { ListRow, SectionHeading } from './primitives'
 import { cn } from '../../lib/utils'
 
 export function AppearanceSettings() {
   const { themeName, mode, availableThemes, setTheme, setMode } = useTheme()
-  const translucency = useStore($translucency)
 
   const modeOptions = [
     { id: 'light', label: 'Light', icon: <Sun className="size-3.5" /> },
@@ -80,29 +77,6 @@ export function AppearanceSettings() {
                   </button>
                 )
               })}
-            </div>
-          }
-        />
-
-        {/* Translucency Slider Control */}
-        <ListRow
-          title="Window Translucency"
-          description="Make the dashboard window translucent, letting your desktop background reveal through behind panels (supported on macOS & Windows native builds)."
-          action={
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={5}
-                value={translucency}
-                onChange={e => setTranslucency(Number(e.target.value))}
-                className="h-1 w-40 cursor-pointer appearance-none rounded-full bg-(--ui-stroke-tertiary) outline-none"
-                style={{ accentColor: 'var(--theme-primary)' }}
-              />
-              <span className="w-9 text-right text-xs font-mono text-(--ui-text-tertiary)">
-                {translucency}%
-              </span>
             </div>
           }
         />

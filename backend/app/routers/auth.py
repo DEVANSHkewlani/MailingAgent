@@ -147,6 +147,20 @@ async def save_smtp_config(payload: SMTPConfigPayload):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user_id format")
         
+    # Ensure user exists in users table first
+    user = await db.fetchrow("SELECT id FROM users WHERE id = $1", user_uuid)
+    if not user:
+        placeholder_email = payload.smtp_username or f"user_{user_uuid}@example.com"
+        existing_email_user = await db.fetchrow("SELECT id FROM users WHERE email = $1", placeholder_email)
+        if existing_email_user:
+            placeholder_email = f"placeholder_{user_uuid}@example.com"
+        await db.execute(
+            "INSERT INTO users (id, email, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
+            user_uuid, placeholder_email, "User"
+        )
+        from app.db.init_db import seed_default_rules
+        await seed_default_rules(str(user_uuid), db)
+
     fernet = Fernet(settings.token_encryption_key.encode())
     
     if payload.smtp_password:
@@ -212,6 +226,17 @@ async def save_groq_key(payload: GroqKeyPayload):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user_id format")
         
+    # Ensure user exists in users table first
+    user = await db.fetchrow("SELECT id FROM users WHERE id = $1", user_uuid)
+    if not user:
+        placeholder_email = f"user_{user_uuid}@example.com"
+        await db.execute(
+            "INSERT INTO users (id, email, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
+            user_uuid, placeholder_email, "User"
+        )
+        from app.db.init_db import seed_default_rules
+        await seed_default_rules(str(user_uuid), db)
+
     fernet = Fernet(settings.token_encryption_key.encode())
     encrypted_key = fernet.encrypt(payload.groq_api_key.encode()).decode()
     

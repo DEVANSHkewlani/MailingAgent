@@ -48,6 +48,7 @@ function createWindow() {
         hasShadow: true,
         vibrancy: 'under-window', // macOS glass effect
         visualEffectState: 'active',
+        icon: path.join(__dirname, '../public/mail-icon-512.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -61,14 +62,6 @@ function createWindow() {
         mainWindow = null;
     });
 }
-// ── Bind IPC translucency listeners ──────────────────────────────────────────
-electron_1.ipcMain.on('set-translucency', (_, payload) => {
-    if (mainWindow) {
-        const opacity = 1 - (payload.intensity / 100);
-        // Clamp opacity to a safe range (minimum 15% so the window does not vanish)
-        mainWindow.setOpacity(Math.max(0.15, opacity));
-    }
-});
 electron_1.app.whenReady().then(() => {
     createWindow();
     electron_1.app.on('activate', () => {

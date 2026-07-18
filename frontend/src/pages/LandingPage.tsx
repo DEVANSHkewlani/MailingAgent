@@ -17,6 +17,8 @@ export function LandingPage() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [installable, setInstallable] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
+  const [showModal, setShowModal] = useState(false)
+  const [activeBrowserTab, setActiveBrowserTab] = useState<'chrome' | 'safari' | 'edge' | 'brave'>('chrome')
 
   useEffect(() => {
     document.body.classList.add('scrollable-body')
@@ -34,6 +36,17 @@ export function LandingPage() {
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
 
+    const ua = navigator.userAgent.toLowerCase()
+    if (ua.includes('edg/')) {
+      setActiveBrowserTab('edge')
+    } else if (ua.includes('chrome') && (ua.includes('brave') || (navigator as any).brave !== undefined)) {
+      setActiveBrowserTab('brave')
+    } else if (ua.includes('safari') && !ua.includes('chrome') && !ua.includes('chromium')) {
+      setActiveBrowserTab('safari')
+    } else {
+      setActiveBrowserTab('chrome')
+    }
+
     return () => {
       document.body.classList.remove('scrollable-body')
       document.documentElement.classList.remove('scrollable-body')
@@ -46,22 +59,19 @@ export function LandingPage() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
   }
 
-  const handleInstall = async () => {
+  const handleInstall = () => {
+    setShowModal(true)
+  }
+
+  const triggerPwaInstall = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt()
       const result = await deferredPrompt.userChoice
       if (result.outcome === 'accepted') {
         setInstallable(false)
         setDeferredPrompt(null)
+        setShowModal(false)
       }
-    } else {
-      // Fallback for browsers without beforeinstallprompt (Safari, Firefox)
-      alert(
-        'To install as a desktop app:\n\n' +
-        '• Chrome/Edge: Click the install icon in the address bar\n' +
-        '• Safari: Share → Add to Home Screen\n' +
-        '• Firefox: Not yet supported — bookmark this page instead'
-      )
     }
   }
 
@@ -453,7 +463,166 @@ export function LandingPage() {
       >
         © 2026 Mailing Agent · MIT License · Built with LangGraph
       </footer>
+
+      {/* ─── PWA Install Modal ─── */}
+      {showModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300"
+          style={{
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+          }}
+          onClick={() => setShowModal(false)}
+        >
+          {/* Modal Container */}
+          <div 
+            className="w-full max-w-xl rounded-2xl relative overflow-hidden transition-all duration-300 border border-[#262626] shadow-[0_24px_50px_-12px_rgba(0,0,0,0.9)]"
+            style={{
+              background: '#141414',
+              color: '#ffffff',
+              padding: '32px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button 
+              className="absolute top-4 right-4 text-white/40 hover:text-white/80 transition-colors p-2 cursor-pointer bg-transparent border-none"
+              onClick={() => setShowModal(false)}
+            >
+              ✕
+            </button>
+
+            {/* Glowing spotlight effect inside the card */}
+            <div 
+              className="absolute pointer-events-none -top-24 -left-24 size-48 rounded-full blur-[80px]"
+              style={{
+                background: 'rgba(0, 153, 255, 0.15)',
+              }}
+            />
+
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-6">
+              <div 
+                className="size-10 rounded-xl flex items-center justify-center border border-white/10"
+                style={{ background: 'rgba(255,255,255,0.03)' }}
+              >
+                <Download className="size-5 text-[#0099ff]" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-xl font-bold tracking-tight text-white">Get Mailing Agent</h3>
+                <p className="text-sm text-white/50">Install it as a desktop application on your device</p>
+              </div>
+            </div>
+
+            {/* Browser Tabs Selector */}
+            <div className="flex border-b border-white/5 mb-6">
+              {(['chrome', 'safari', 'edge', 'brave'] as const).map((b) => (
+                <button
+                  key={b}
+                  onClick={() => setActiveBrowserTab(b)}
+                  className={`py-2 px-4 text-sm font-semibold tracking-tight transition-all relative cursor-pointer border-none bg-transparent ${
+                    activeBrowserTab === b ? 'text-[#0099ff]' : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  {b.charAt(0).toUpperCase() + b.slice(1)}
+                  {activeBrowserTab === b && (
+                    <div 
+                      className="absolute bottom-0 left-0 right-0 h-[2px]" 
+                      style={{ background: '#0099ff' }}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Content per Browser */}
+            <div className="mb-8 min-h-[140px] text-white/85 text-left">
+              {activeBrowserTab === 'chrome' && (
+                <div className="space-y-4">
+                  <p className="text-sm leading-relaxed">
+                    Google Chrome offers a direct application download. To install:
+                  </p>
+                  <ol className="text-sm space-y-2 list-decimal list-inside text-white/70 pl-1">
+                    <li>Click the <strong>Install App</strong> button below.</li>
+                    <li>Or, click the <strong>Install icon</strong> (small monitor with download arrow) at the right end of the address bar.</li>
+                    <li>Select <strong>Install</strong> when prompted.</li>
+                  </ol>
+                </div>
+              )}
+
+              {activeBrowserTab === 'safari' && (
+                <div className="space-y-4">
+                  <p className="text-sm leading-relaxed">
+                    Safari supports installing PWAs on macOS Sonoma (or newer) and iOS/iPadOS:
+                  </p>
+                  <ol className="text-sm space-y-2 list-decimal list-inside text-white/70 pl-1">
+                    <li>Click the <strong>Share</strong> button (box with an upward arrow) in the toolbar.</li>
+                    <li>Select <strong>Add to Dock</strong> (on Mac) or <strong>Add to Home Screen</strong> (on iPhone/iPad).</li>
+                    <li>Name it <strong>Mailing Agent</strong> and click Add.</li>
+                  </ol>
+                </div>
+              )}
+
+              {activeBrowserTab === 'edge' && (
+                <div className="space-y-4">
+                  <p className="text-sm leading-relaxed">
+                    Microsoft Edge allows installing websites as standalone apps:
+                  </p>
+                  <ol className="text-sm space-y-2 list-decimal list-inside text-white/70 pl-1">
+                    <li>Click the <strong>Install App</strong> button below.</li>
+                    <li>Or, click the <strong>App Available</strong> icon in the address bar (looks like three squares and a plus).</li>
+                    <li>Click <strong>Install</strong> to confirm.</li>
+                  </ol>
+                </div>
+              )}
+
+              {activeBrowserTab === 'brave' && (
+                <div className="space-y-4">
+                  <p className="text-sm leading-relaxed">
+                    Brave Browser supports direct installation as a web app:
+                  </p>
+                  <ol className="text-sm space-y-2 list-decimal list-inside text-white/70 pl-1">
+                    <li>Click the <strong>Install App</strong> button below.</li>
+                    <li>Or, click the <strong>Install icon</strong> (small monitor with download arrow) on the right of the address bar.</li>
+                    <li>Confirm by clicking <strong>Install</strong>.</li>
+                  </ol>
+                </div>
+              )}
+            </div>
+
+            {/* CTA Actions */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/5">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-5 py-2.5 rounded-full text-sm font-semibold tracking-tight hover:bg-white/5 transition-all text-white/70 cursor-pointer border-none bg-transparent"
+              >
+                Close
+              </button>
+
+              {/* Direct install trigger if the PWA event is ready */}
+              {installable && activeBrowserTab !== 'safari' ? (
+                <button
+                  onClick={triggerPwaInstall}
+                  className="px-5 py-2.5 rounded-full text-sm font-bold tracking-tight bg-white text-black hover:bg-white/90 transition-all cursor-pointer border-none flex items-center gap-1.5"
+                >
+                  <Download className="size-4" />
+                  Install App
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="px-5 py-2.5 rounded-full text-sm font-semibold tracking-tight bg-[#0099ff] hover:bg-[#0088ee] transition-all text-white cursor-pointer border-none"
+                >
+                  Got it
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 export default LandingPage
+

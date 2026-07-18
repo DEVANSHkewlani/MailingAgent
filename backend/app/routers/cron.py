@@ -98,10 +98,23 @@ async def create_cron_job(payload: CronJobInput) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     db = get_db()
+    
+    # Ensure user exists in users table first
+    user_uuid = uuid.UUID(payload.user_id)
+    user = await db.fetchrow("SELECT id FROM users WHERE id = $1", user_uuid)
+    if not user:
+        placeholder_email = f"user_{user_uuid}@example.com"
+        await db.execute(
+            "INSERT INTO users (id, email, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
+            user_uuid, placeholder_email, "User"
+        )
+        from app.db.init_db import seed_default_rules
+        await seed_default_rules(str(user_uuid), db)
+
     row = await db.fetchrow(
         "INSERT INTO cron_jobs (user_id, name, prompt, schedule_type, schedule_value, next_run_at) "
         "VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-        uuid.UUID(payload.user_id),
+        user_uuid,
         payload.name,
         payload.prompt,
         payload.schedule_type,
