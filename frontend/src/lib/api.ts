@@ -2,10 +2,20 @@
  * API Utility — helper functions to connect the Mailing Agent frontend to our backend.
  */
 
+import { getAuthToken } from '../store/auth'
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+function authHeaders(extraHeaders: Record<string, string> = {}): HeadersInit {
+  const token = getAuthToken()
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    ...extraHeaders,
+  }
+}
+
 export interface MessageInput {
-  user_id: string
   instruction: string
 }
 
@@ -28,16 +38,13 @@ export interface Message {
   content: string
 }
 
-export async function sendMessage(conversationId: string, userId: string, instruction: string) {
+export async function sendMessage(conversationId: string, instruction: string) {
   const groqKey = localStorage.getItem('mailing_agent_groq_key') || ''
 
   const response = await fetch(`${API_BASE_URL}/chat/${conversationId}/message`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Groq-Api-Key': groqKey
-    },
-    body: JSON.stringify({ user_id: userId, instruction }),
+    headers: authHeaders({ 'X-Groq-Api-Key': groqKey }),
+    body: JSON.stringify({ instruction }),
   })
   if (!response.ok) {
     throw new Error(await response.text())
@@ -45,19 +52,21 @@ export async function sendMessage(conversationId: string, userId: string, instru
   return response.json()
 }
 
-export async function fetchConversations(userId: string): Promise<Conversation[]> {
-  const response = await fetch(`${API_BASE_URL}/chat/conversations?user_id=${encodeURIComponent(userId)}`)
+export async function fetchConversations(): Promise<Conversation[]> {
+  const response = await fetch(`${API_BASE_URL}/chat/conversations`, {
+    headers: authHeaders()
+  })
   if (!response.ok) {
     throw new Error(await response.text())
   }
   return response.json()
 }
 
-export async function createConversation(conversationId: string, userId: string, title: string) {
+export async function createConversation(conversationId: string, title: string) {
   const response = await fetch(`${API_BASE_URL}/chat/conversations`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ conversation_id: conversationId, user_id: userId, title }),
+    headers: authHeaders(),
+    body: JSON.stringify({ conversation_id: conversationId, title }),
   })
   if (!response.ok) {
     throw new Error(await response.text())
@@ -68,6 +77,7 @@ export async function createConversation(conversationId: string, userId: string,
 export async function deleteConversation(conversationId: string) {
   const response = await fetch(`${API_BASE_URL}/chat/${conversationId}`, {
     method: 'DELETE',
+    headers: authHeaders(),
   })
   if (!response.ok) {
     throw new Error(await response.text())
@@ -76,15 +86,19 @@ export async function deleteConversation(conversationId: string) {
 }
 
 export async function fetchMessages(conversationId: string): Promise<Message[]> {
-  const response = await fetch(`${API_BASE_URL}/chat/${conversationId}/messages`)
+  const response = await fetch(`${API_BASE_URL}/chat/${conversationId}/messages`, {
+    headers: authHeaders()
+  })
   if (!response.ok) {
     throw new Error(await response.text())
   }
   return response.json()
 }
 
-export async function fetchApprovals(userId: string, status = 'pending'): Promise<Approval[]> {
-  const response = await fetch(`${API_BASE_URL}/approvals?user_id=${encodeURIComponent(userId)}&status=${status}`)
+export async function fetchApprovals(status = 'pending'): Promise<Approval[]> {
+  const response = await fetch(`${API_BASE_URL}/approvals?status=${status}`, {
+    headers: authHeaders()
+  })
   if (!response.ok) {
     throw new Error(await response.text())
   }
@@ -94,7 +108,7 @@ export async function fetchApprovals(userId: string, status = 'pending'): Promis
 export async function approveAction(approvalId: string, editedPayload?: any) {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/approve`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: editedPayload ? JSON.stringify(editedPayload) : undefined,
   })
   if (!response.ok) {
@@ -106,6 +120,7 @@ export async function approveAction(approvalId: string, editedPayload?: any) {
 export async function rejectAction(approvalId: string) {
   const response = await fetch(`${API_BASE_URL}/approvals/${approvalId}/reject`, {
     method: 'POST',
+    headers: authHeaders(),
   })
   if (!response.ok) {
     throw new Error(await response.text())
@@ -113,29 +128,35 @@ export async function rejectAction(approvalId: string) {
   return response.json()
 }
 
-export function getGoogleLoginUrl(userId: string): string {
+export function getGoogleLoginUrl(): string {
   const frontendUrl = window.location.origin
-  return `${API_BASE_URL}/auth/login?user_id=${encodeURIComponent(userId)}&frontend_url=${encodeURIComponent(frontendUrl)}`
+  return `${API_BASE_URL}/auth/login?frontend_url=${encodeURIComponent(frontendUrl)}`
 }
 
-export async function fetchEmails(userId: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE_URL}/chat/emails?user_id=${encodeURIComponent(userId)}`)
+export async function fetchEmails(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/chat/emails`, {
+    headers: authHeaders()
+  })
   if (!response.ok) {
     throw new Error(await response.text())
   }
   return response.json()
 }
 
-export async function fetchAlerts(userId: string): Promise<any[]> {
-  const response = await fetch(`${API_BASE_URL}/chat/alerts?user_id=${encodeURIComponent(userId)}`)
+export async function fetchAlerts(): Promise<any[]> {
+  const response = await fetch(`${API_BASE_URL}/chat/alerts`, {
+    headers: authHeaders()
+  })
   if (!response.ok) {
     throw new Error(await response.text())
   }
   return response.json()
 }
 
-export async function checkGoogleAuthStatus(userId: string): Promise<boolean> {
-  const response = await fetch(`${API_BASE_URL}/auth/status?user_id=${encodeURIComponent(userId)}`)
+export async function checkGoogleAuthStatus(): Promise<boolean> {
+  const response = await fetch(`${API_BASE_URL}/auth/status`, {
+    headers: authHeaders()
+  })
   if (!response.ok) {
     return false
   }
@@ -154,8 +175,10 @@ export interface GoogleProfile {
   connected_at?: string | null
 }
 
-export async function fetchGoogleProfile(userId: string): Promise<GoogleProfile> {
-  const response = await fetch(`${API_BASE_URL}/auth/profile?user_id=${encodeURIComponent(userId)}`)
+export async function fetchGoogleProfile(): Promise<GoogleProfile> {
+  const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+    headers: authHeaders()
+  })
   if (!response.ok) {
     throw new Error(await response.text())
   }
@@ -179,14 +202,15 @@ export interface CronJob {
   updated_at?: string | null
 }
 
-export async function fetchCronJobs(userId: string): Promise<CronJob[]> {
-  const response = await fetch(`${API_BASE_URL}/cron?user_id=${encodeURIComponent(userId)}`)
+export async function fetchCronJobs(): Promise<CronJob[]> {
+  const response = await fetch(`${API_BASE_URL}/cron`, {
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
 export async function createCronJob(payload: {
-  user_id: string
   name?: string
   prompt: string
   schedule_type: 'interval_minutes' | 'daily'
@@ -194,7 +218,7 @@ export async function createCronJob(payload: {
 }): Promise<CronJob> {
   const response = await fetch(`${API_BASE_URL}/cron`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(payload),
   })
   if (!response.ok) throw new Error(await response.text())
@@ -204,7 +228,7 @@ export async function createCronJob(payload: {
 export async function updateCronJob(jobId: string, payload: Partial<CronJob>): Promise<CronJob> {
   const response = await fetch(`${API_BASE_URL}/cron/${jobId}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(payload),
   })
   if (!response.ok) throw new Error(await response.text())
@@ -212,25 +236,37 @@ export async function updateCronJob(jobId: string, payload: Partial<CronJob>): P
 }
 
 export async function pauseCronJob(jobId: string): Promise<CronJob> {
-  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/pause`, { method: 'POST' })
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/pause`, { 
+    method: 'POST',
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
 export async function resumeCronJob(jobId: string): Promise<CronJob> {
-  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/resume`, { method: 'POST' })
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/resume`, { 
+    method: 'POST',
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
 export async function triggerCronJob(jobId: string): Promise<any> {
-  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/trigger`, { method: 'POST' })
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/trigger`, { 
+    method: 'POST',
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
 export async function deleteCronJob(jobId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/cron/${jobId}`, { method: 'DELETE' })
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}`, { 
+    method: 'DELETE',
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
 }
 
@@ -246,7 +282,9 @@ export interface CronRun {
 }
 
 export async function fetchCronRuns(jobId: string): Promise<CronRun[]> {
-  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/runs`)
+  const response = await fetch(`${API_BASE_URL}/cron/${jobId}/runs`, {
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
@@ -261,14 +299,15 @@ export interface SMTPSettings {
   has_password?: boolean
 }
 
-export async function fetchSMTPSettings(userId: string): Promise<SMTPSettings> {
-  const response = await fetch(`${API_BASE_URL}/auth/smtp?user_id=${encodeURIComponent(userId)}`)
+export async function fetchSMTPSettings(): Promise<SMTPSettings> {
+  const response = await fetch(`${API_BASE_URL}/auth/smtp`, {
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
 export async function saveSMTPSettings(payload: {
-  user_id: string
   smtp_host: string
   smtp_port: number
   smtp_username: string
@@ -277,31 +316,35 @@ export async function saveSMTPSettings(payload: {
 }): Promise<{ status: string, message: string }> {
   const response = await fetch(`${API_BASE_URL}/auth/smtp`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(payload),
   })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
-export async function fetchEmailBody(userId: string, emailId: string): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/chat/emails/${encodeURIComponent(emailId)}/body?user_id=${encodeURIComponent(userId)}`)
+export async function fetchEmailBody(emailId: string): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/chat/emails/${encodeURIComponent(emailId)}/body`, {
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   const data = await response.json()
   return data.body || ""
 }
 
-export async function fetchGroqSettings(userId: string): Promise<{ configured: boolean, groq_api_key: string }> {
-  const response = await fetch(`${API_BASE_URL}/auth/groq?user_id=${encodeURIComponent(userId)}`)
+export async function fetchGroqSettings(): Promise<{ configured: boolean, groq_api_key: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/groq`, {
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
-export async function saveGroqSettings(userId: string, key: string): Promise<{ status: string, message: string }> {
+export async function saveGroqSettings(key: string): Promise<{ status: string, message: string }> {
   const response = await fetch(`${API_BASE_URL}/auth/groq`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: userId, groq_api_key: key }),
+    headers: authHeaders(),
+    body: JSON.stringify({ groq_api_key: key }),
   })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
@@ -315,7 +358,6 @@ export interface BulkSMTPConfig {
   port: number
   email: string
   password?: string
-  user_id?: string
 }
 
 export interface BulkContact {
@@ -376,7 +418,7 @@ export interface BulkHistoryEntry {
 export async function testBulkSmtp(cfg: BulkSMTPConfig) {
   const response = await fetch(`${API_BASE_URL}/api/bulk-email/smtp-test`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(cfg),
   })
   if (!response.ok) throw new Error(await response.text())
@@ -386,8 +428,12 @@ export async function testBulkSmtp(cfg: BulkSMTPConfig) {
 export async function uploadBulkCsv(file: File) {
   const formData = new FormData()
   formData.append('file', file)
+  const headers = authHeaders() as Record<string, string>
+  // Remove Content-Type so browser sets it with boundary
+  delete headers['Content-Type']
   const response = await fetch(`${API_BASE_URL}/api/bulk-email/upload-csv`, {
     method: 'POST',
+    headers,
     body: formData,
   })
   if (!response.ok) throw new Error(await response.text())
@@ -397,7 +443,7 @@ export async function uploadBulkCsv(file: File) {
 export async function startBulkCampaign(request: BulkSendRequest) {
   const response = await fetch(`${API_BASE_URL}/api/bulk-email/send`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify(request),
   })
   if (!response.ok) throw new Error(await response.text())
@@ -405,17 +451,23 @@ export async function startBulkCampaign(request: BulkSendRequest) {
 }
 
 export function streamBulkProgress(jobId: string): EventSource {
-  return new EventSource(`${API_BASE_URL}/api/bulk-email/stream/${jobId}`)
+  const token = getAuthToken()
+  return new EventSource(`${API_BASE_URL}/api/bulk-email/stream/${jobId}?token=${encodeURIComponent(token)}`)
 }
 
 export async function stopBulkCampaign(jobId: string) {
-  const response = await fetch(`${API_BASE_URL}/api/bulk-email/stop/${jobId}`, { method: 'POST' })
+  const response = await fetch(`${API_BASE_URL}/api/bulk-email/stop/${jobId}`, { 
+    method: 'POST',
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
 
 export async function fetchBulkHistory(): Promise<BulkHistoryEntry[]> {
-  const response = await fetch(`${API_BASE_URL}/api/bulk-email/history`)
+  const response = await fetch(`${API_BASE_URL}/api/bulk-email/history`, {
+    headers: authHeaders()
+  })
   if (!response.ok) throw new Error(await response.text())
   return response.json()
 }
@@ -423,7 +475,7 @@ export async function fetchBulkHistory(): Promise<BulkHistoryEntry[]> {
 export async function sendBulkTestEmail(smtp: BulkSMTPConfig, compose: BulkComposePayload, to: string) {
   const response = await fetch(`${API_BASE_URL}/api/bulk-email/test-email`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(),
     body: JSON.stringify({ smtp, compose, to }),
   })
   if (!response.ok) throw new Error(await response.text())

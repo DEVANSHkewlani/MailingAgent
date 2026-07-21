@@ -63,9 +63,9 @@ export function AppShell() {
       return
     }
 
-    loadConversations(userId)
-    loadPendingApprovals(userId)
-    connectApprovalsWebSocket(userId)
+    loadConversations()
+    loadPendingApprovals()
+    connectApprovalsWebSocket()
 
     if (localStorage.getItem('open_settings_on_load')) {
       $settingsOpen.set(true)

@@ -5,7 +5,7 @@ from app.config import settings
 from app.providers.gmail import GmailProvider
 from app.providers.google_calendar import GoogleCalendarProvider
 
-fernet = Fernet(settings.token_encryption_key.encode())
+fernet = Fernet(settings.oauth_encryption_key.get_secret_value().encode())
 
 async def get_mail_provider_async(user_id: str) -> GmailProvider:
     from app.db.session import get_db

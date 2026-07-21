@@ -1,5 +1,5 @@
 /**
- * Auth Store — holds the active user ID and manages OAuth provider states.
+ * Auth Store — holds the active user ID, JWT token, and manages OAuth provider states.
  */
 
 import { atom } from 'nanostores'
@@ -10,22 +10,11 @@ const getInitialUserId = (): string => {
   // Ensure the cached value is a valid-length UUID
   if (cached && cached.length >= 32) return cached
   
-  // Generate a unique random UUID for this session
-  let newId: string
-  try {
-    newId = crypto.randomUUID()
-  } catch (e) {
-    newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0
-      const v = c === 'x' ? r : (r & 0x3) | 0x8
-      return v.toString(16)
-    })
-  }
-  localStorage.setItem('mailing_agent_user_id', newId)
-  return newId
+  return ''
 }
 
 export const $userId = atom<string>(getInitialUserId())
+export const $authToken = atom<string>(localStorage.getItem('mailing_agent_auth_token') || '')
 export const $googleAuthenticated = atom<boolean>(false)
 
 export function setUserId(id: string) {
@@ -33,6 +22,32 @@ export function setUserId(id: string) {
   localStorage.setItem('mailing_agent_user_id', id)
 }
 
+export function setAuthToken(token: string) {
+  $authToken.set(token)
+  localStorage.setItem('mailing_agent_auth_token', token)
+  try {
+    // Decode JWT to extract user_id
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    if (payload.user_id) {
+      setUserId(payload.user_id)
+    }
+  } catch (e) {
+    console.error("Failed to decode auth token:", e)
+  }
+}
+
+export function getAuthToken(): string {
+  return $authToken.get() || localStorage.getItem('mailing_agent_auth_token') || ''
+}
+
 export function setGoogleAuthStatus(auth: boolean) {
   $googleAuthenticated.set(auth)
+}
+
+export function logout() {
+  $authToken.set('')
+  $userId.set('')
+  $googleAuthenticated.set(false)
+  localStorage.removeItem('mailing_agent_auth_token')
+  localStorage.removeItem('mailing_agent_user_id')
 }

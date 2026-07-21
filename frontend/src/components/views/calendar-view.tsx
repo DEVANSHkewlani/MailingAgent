@@ -31,7 +31,7 @@ export function CalendarView() {
   useEffect(() => {
     let active = true
     setLoading(true)
-    fetchAlerts(userId)
+    fetchAlerts()
       .then(data => {
         if (active) setAlerts(data)
       })
@@ -43,7 +43,7 @@ export function CalendarView() {
   }, [userId, refreshSignal])
 
   const triggerAutoClean = () => {
-    handleSendMessage($userId.get(), 'Reconcile my schedule and clean up duplicate reminders.')
+    handleSendMessage('Reconcile my schedule and clean up duplicate reminders.')
     $activeView.set('chat')
   }
 

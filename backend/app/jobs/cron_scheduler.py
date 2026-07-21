@@ -72,7 +72,7 @@ async def run_cron_job(job_id: str) -> Dict[str, Any]:
             if user_row and user_row["groq_api_key"]:
                 from cryptography.fernet import Fernet
                 from app.config import settings
-                fernet = Fernet(settings.token_encryption_key.encode())
+                fernet = Fernet(settings.oauth_encryption_key.get_secret_value().encode())
                 db_groq_key = fernet.decrypt(user_row["groq_api_key"].encode()).decode()
         except Exception as e:
             print(f"Cron Scheduler: Failed to decrypt user Groq key: {e}")

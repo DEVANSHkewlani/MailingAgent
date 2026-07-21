@@ -1,16 +1,24 @@
-import asyncio
+"""
+Cron Router — manage scheduled agent jobs.
+
+Security:
+  - All endpoints require JWT authentication via Depends(get_current_user)
+  - Ownership check on all job-specific operations
+"""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
+from app.auth.jwt_auth import get_current_user
 
 router = APIRouter(prefix="/cron", tags=["cron"])
 
 
 class CronJobInput(BaseModel):
-    user_id: str
     name: Optional[str] = None
     prompt: str = Field(..., min_length=3)
     schedule_type: str = Field(..., pattern="^(interval_minutes|daily)$")
@@ -76,37 +84,49 @@ def _job_from_row(row) -> Dict[str, Any]:
     }
 
 
-@router.get("")
-async def list_cron_jobs(user_id: str) -> List[Dict[str, Any]]:
-    from app.db.session import get_db
+async def _verify_job_ownership(job_id: str, user_id: str, db):
+    """Verify the cron job belongs to the authenticated user. Raises 404/403."""
+    job = await db.fetchrow("SELECT user_id FROM cron_jobs WHERE id = $1", uuid.UUID(job_id))
+    if not job:
+        raise HTTPException(status_code=404, detail="Cron job not found")
+    if str(job["user_id"]) != user_id:
+        raise HTTPException(status_code=403, detail="Not your cron job")
 
+
+@router.get("")
+async def list_cron_jobs(
+    current_user: dict = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    from app.db.session import get_db
     db = get_db()
     rows = await db.fetch(
         "SELECT * FROM cron_jobs WHERE user_id = $1 ORDER BY created_at DESC",
-        uuid.UUID(user_id),
+        uuid.UUID(current_user["user_id"]),
     )
     return [_job_from_row(row) for row in rows]
 
 
 @router.post("")
-async def create_cron_job(payload: CronJobInput) -> Dict[str, Any]:
+async def create_cron_job(
+    payload: CronJobInput,
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
     from app.db.session import get_db
-
     try:
         next_run = compute_next_run(payload.schedule_type, payload.schedule_value)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     db = get_db()
-    
-    # Ensure user exists in users table first
-    user_uuid = uuid.UUID(payload.user_id)
+    user_uuid = uuid.UUID(current_user["user_id"])
+
+    # Ensure user exists
     user = await db.fetchrow("SELECT id FROM users WHERE id = $1", user_uuid)
     if not user:
         placeholder_email = f"user_{user_uuid}@example.com"
         await db.execute(
             "INSERT INTO users (id, email, display_name) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
-            user_uuid, placeholder_email, "User"
+            user_uuid, placeholder_email, "User",
         )
         from app.db.init_db import seed_default_rules
         await seed_default_rules(str(user_uuid), db)
@@ -114,24 +134,22 @@ async def create_cron_job(payload: CronJobInput) -> Dict[str, Any]:
     row = await db.fetchrow(
         "INSERT INTO cron_jobs (user_id, name, prompt, schedule_type, schedule_value, next_run_at) "
         "VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-        user_uuid,
-        payload.name,
-        payload.prompt,
-        payload.schedule_type,
-        payload.schedule_value,
-        next_run,
+        user_uuid, payload.name, payload.prompt, payload.schedule_type, payload.schedule_value, next_run,
     )
     return _job_from_row(row)
 
 
 @router.patch("/{job_id}")
-async def update_cron_job(job_id: str, payload: CronJobUpdate) -> Dict[str, Any]:
+async def update_cron_job(
+    job_id: str,
+    payload: CronJobUpdate,
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
     from app.db.session import get_db
-
     db = get_db()
+    await _verify_job_ownership(job_id, current_user["user_id"], db)
+
     current = await db.fetchrow("SELECT * FROM cron_jobs WHERE id = $1", uuid.UUID(job_id))
-    if not current:
-        raise HTTPException(status_code=404, detail="Cron job not found")
 
     schedule_type = payload.schedule_type or current["schedule_type"]
     schedule_value = payload.schedule_value or current["schedule_value"]
@@ -150,69 +168,81 @@ async def update_cron_job(job_id: str, payload: CronJobUpdate) -> Dict[str, Any]
         "WHERE id = $8 RETURNING *",
         payload.name if payload.name is not None else current["name"],
         payload.prompt if payload.prompt is not None else current["prompt"],
-        schedule_type,
-        schedule_value,
-        enabled,
-        state,
-        next_run,
-        uuid.UUID(job_id),
+        schedule_type, schedule_value, enabled, state, next_run, uuid.UUID(job_id),
     )
     return _job_from_row(row)
 
 
 @router.post("/{job_id}/pause")
-async def pause_cron_job(job_id: str) -> Dict[str, Any]:
+async def pause_cron_job(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
     from app.db.session import get_db
-
     db = get_db()
+    await _verify_job_ownership(job_id, current_user["user_id"], db)
+
     row = await db.fetchrow(
         "UPDATE cron_jobs SET enabled = false, state = 'paused', updated_at = now() WHERE id = $1 RETURNING *",
         uuid.UUID(job_id),
     )
-    if not row:
-        raise HTTPException(status_code=404, detail="Cron job not found")
     return _job_from_row(row)
 
 
 @router.post("/{job_id}/resume")
-async def resume_cron_job(job_id: str) -> Dict[str, Any]:
+async def resume_cron_job(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
     from app.db.session import get_db
-
     db = get_db()
+    await _verify_job_ownership(job_id, current_user["user_id"], db)
+
     current = await db.fetchrow("SELECT * FROM cron_jobs WHERE id = $1", uuid.UUID(job_id))
-    if not current:
-        raise HTTPException(status_code=404, detail="Cron job not found")
     next_run = compute_next_run(current["schedule_type"], current["schedule_value"])
     row = await db.fetchrow(
         "UPDATE cron_jobs SET enabled = true, state = 'scheduled', next_run_at = $1, updated_at = now(), last_error = NULL "
         "WHERE id = $2 RETURNING *",
-        next_run,
-        uuid.UUID(job_id),
+        next_run, uuid.UUID(job_id),
     )
     return _job_from_row(row)
 
 
 @router.delete("/{job_id}")
-async def delete_cron_job(job_id: str) -> Dict[str, str]:
+async def delete_cron_job(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, str]:
     from app.db.session import get_db
-
     db = get_db()
+    await _verify_job_ownership(job_id, current_user["user_id"], db)
+
     await db.execute("DELETE FROM cron_jobs WHERE id = $1", uuid.UUID(job_id))
     return {"status": "deleted"}
 
 
 @router.post("/{job_id}/trigger")
-async def trigger_cron_job(job_id: str) -> Dict[str, Any]:
-    from app.jobs.cron_scheduler import run_cron_job
+async def trigger_cron_job(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    from app.db.session import get_db
+    db = get_db()
+    await _verify_job_ownership(job_id, current_user["user_id"], db)
 
+    from app.jobs.cron_scheduler import run_cron_job
     return await run_cron_job(job_id)
 
 
 @router.get("/{job_id}/runs")
-async def list_cron_runs(job_id: str) -> List[Dict[str, Any]]:
+async def list_cron_runs(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
     from app.db.session import get_db
-
     db = get_db()
+    await _verify_job_ownership(job_id, current_user["user_id"], db)
+
     rows = await db.fetch(
         "SELECT id::text, job_id::text, conversation_id::text, status, output, error, started_at, finished_at "
         "FROM cron_runs WHERE job_id = $1 ORDER BY started_at DESC LIMIT 50",

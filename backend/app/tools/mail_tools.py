@@ -141,7 +141,7 @@ def update_draft(draft_id: str, body_markdown: str,
 
 class CreateReminderInput(BaseModel):
     title: str
-    due_at_iso: str
+    due_at_iso: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}")
     related_thread_id: Optional[str] = None
 
 @tool("create_reminder", args_schema=CreateReminderInput)
@@ -188,39 +188,39 @@ class CreateEventInput(BaseModel):
     title: str
     start_iso: str
     end_iso: str
-    attendees: List[str] = []
+    attendees: List[str] = Field(default_factory=list)
     confirmation_token: str
 
 @tool("create_event", args_schema=CreateEventInput)
 def create_event(title: str, start_iso: str, end_iso: str,
-                 attendees: List[str], confirmation_token: str) -> Dict[str, Any]:
+                 confirmation_token: str, attendees: Optional[List[str]] = None) -> Dict[str, Any]:
     """Create a Google Calendar event. IRREVERSIBLE. Requires confirmation_token."""
     from app.permissions.tokens import verify_token
     from app.providers.google_calendar import calendar_client
     
     verify_token(confirmation_token, action="create_event", resource=title)
-    event = calendar_client.create_event(title, start_iso, end_iso, attendees)
+    event = calendar_client.create_event(title, start_iso, end_iso, attendees or [])
     return {"event_id": event.id, "title": event.title, "status": "created"}
 
 
 class UpdateEventInput(BaseModel):
     event_id: str
+    confirmation_token: str
     title: Optional[str] = None
     start_iso: Optional[str] = None
     end_iso: Optional[str] = None
-    attendees: List[str] = []
-    confirmation_token: str
+    attendees: List[str] = Field(default_factory=list)
 
 @tool("update_event", args_schema=UpdateEventInput)
 def update_event(event_id: str, confirmation_token: str, title: Optional[str] = None,
                  start_iso: Optional[str] = None, end_iso: Optional[str] = None,
-                 attendees: List[str] = []) -> Dict[str, Any]:
+                 attendees: Optional[List[str]] = None) -> Dict[str, Any]:
     """Update a Google Calendar event. IRREVERSIBLE. Requires confirmation_token."""
     from app.permissions.tokens import verify_token
     from app.providers.google_calendar import calendar_client
     
     verify_token(confirmation_token, action="update_event", resource=event_id)
-    event = calendar_client.update_event(event_id, title, start_iso, end_iso, attendees)
+    event = calendar_client.update_event(event_id, title, start_iso, end_iso, attendees or [])
     return {"event_id": event.id, "title": event.title, "status": "updated"}
 
 

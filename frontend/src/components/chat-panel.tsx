@@ -7,13 +7,12 @@
 import { useRef, useEffect } from 'react'
 import { useStore } from '@nanostores/react'
 import { $messages, handleSendMessage, $chatSending } from '../store/chat'
-import { $userId } from '../store/auth'
+
 import { Composer } from './composer'
 import { cn } from '../lib/utils'
 
 export function ChatPanel() {
   const messages = useStore($messages)
-  const userId = useStore($userId)
   const chatSending = useStore($chatSending)
   const threadEndRef = useRef<HTMLDivElement | null>(null)
 
@@ -23,7 +22,7 @@ export function ChatPanel() {
   }, [messages, chatSending])
 
   const onSend = (text: string) => {
-    handleSendMessage(userId, text)
+    handleSendMessage(text)
   }
 
   return (

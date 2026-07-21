@@ -40,7 +40,7 @@ def send_draft_transactionally(draft_id: str, approval_id: Optional[str] = None)
         if smtp_password_enc:
             try:
                 from cryptography.fernet import Fernet
-                fernet = Fernet(settings.token_encryption_key.encode())
+                fernet = Fernet(settings.oauth_encryption_key.get_secret_value().encode())
                 smtp_password = fernet.decrypt(smtp_password_enc.encode()).decode()
             except Exception as dec_err:
                 print(f"SMTP: Failed to decrypt user SMTP password: {dec_err}")

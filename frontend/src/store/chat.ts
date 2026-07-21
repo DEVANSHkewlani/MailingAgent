@@ -23,11 +23,11 @@ export const $chatError = atom<string | null>(null)
 // Incremented after every successful agent run to trigger inbox/alerts refresh
 export const $emailRefreshSignal = atom<number>(0)
 
-export async function loadConversations(userId: string) {
+export async function loadConversations() {
   $chatLoading.set(true)
   $chatError.set(null)
   try {
-    const list = await fetchConversations(userId)
+    const list = await fetchConversations()
     $conversations.set(list)
     if (list.length > 0 && !$activeConversationId.get()) {
       // Skip cron-generated conversations for the initial auto-select
@@ -62,13 +62,13 @@ export async function selectConversation(conversationId: string) {
   }
 }
 
-export async function startNewConversation(userId: string) {
+export async function startNewConversation() {
   const newId = crypto.randomUUID()
   const title = `Chat ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
   
   $chatLoading.set(true)
   try {
-    await createConversation(newId, userId, title)
+    await createConversation(newId, title)
     const newConv: Conversation = {
       conversation_id: newId,
       title,
@@ -84,12 +84,12 @@ export async function startNewConversation(userId: string) {
   }
 }
 
-export async function handleSendMessage(userId: string, instruction: string) {
+export async function handleSendMessage(instruction: string) {
   let activeId = $activeConversationId.get()
   if (!activeId) {
     activeId = crypto.randomUUID()
     const title = 'Inbox Command'
-    await createConversation(activeId, userId, title)
+    await createConversation(activeId, title)
     $conversations.set([{ conversation_id: activeId, title, updated_at: new Date().toISOString() }])
     $activeConversationId.set(activeId)
   }
@@ -99,7 +99,7 @@ export async function handleSendMessage(userId: string, instruction: string) {
   $chatSending.set(true)
 
   try {
-    const result = await sendMessage(activeId, userId, instruction)
+    const result = await sendMessage(activeId, instruction)
     const assistantMsg: Message = { role: 'assistant', content: result.response || 'Done.' }
     $messages.set([...$messages.get(), assistantMsg])
     // Signal inbox & alerts views to refresh their data

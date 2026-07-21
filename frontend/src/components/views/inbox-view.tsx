@@ -77,7 +77,7 @@ export function InboxView() {
   useEffect(() => {
     let active = true
     setLoading(true)
-    fetchEmails(userId)
+    fetchEmails()
       .then(data => {
         if (active) setEmails(data)
       })
@@ -92,7 +92,7 @@ export function InboxView() {
     setSelectedEmail(email)
     setEmailBody('')
     setLoadingBody(true)
-    fetchEmailBody(userId, email.id)
+    fetchEmailBody(email.id)
       .then(body => {
         setEmailBody(body)
       })
@@ -111,11 +111,11 @@ export function InboxView() {
   )
 
   const triggerAgentSummary = () => {
-    handleSendMessage($userId.get(), 'Summarize my unread emails and list action items.')
+    handleSendMessage('Summarize my unread emails and list action items.')
   }
 
   const triggerAgentReply = (email: EmailItem) => {
-    handleSendMessage($userId.get(), `Draft a reply to ${email.from} regarding "${email.subject}".`)
+    handleSendMessage(`Draft a reply to ${email.from} regarding "${email.subject}".`)
   }
 
   return (
@@ -162,7 +162,7 @@ export function InboxView() {
             </Button>
             <Button
               onClick={() => {
-                handleSendMessage($userId.get(), `Set follow-up reminder for email from ${selectedEmail.from} in 2 days.`)
+                handleSendMessage(`Set follow-up reminder for email from ${selectedEmail.from} in 2 days.`)
               }}
               variant="outline"
               className="border-(--ui-stroke-secondary) text-xs font-bold w-full"

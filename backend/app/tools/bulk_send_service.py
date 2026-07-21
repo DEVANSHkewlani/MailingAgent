@@ -210,7 +210,7 @@ def _open_smtp(cfg: SMTPConfig, timeout: float = 60.0) -> smtplib.SMTP:
                 (cfg.user_id,)
             ).fetchone()
             if row and row.smtp_password:
-                fernet = Fernet(settings.token_encryption_key.encode())
+                fernet = Fernet(settings.oauth_encryption_key.get_secret_value().encode())
                 password = fernet.decrypt(row.smtp_password.encode()).decode()
                 logger.info("Successfully decrypted saved SMTP password for user_id=%s", cfg.user_id)
             else:

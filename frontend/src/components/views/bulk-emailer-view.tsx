@@ -74,7 +74,7 @@ export function BulkEmailerView() {
   const [histLoading, setHistLoading] = useState(false)
 
   const smtpCfg: BulkSMTPConfig = useMemo(() => ({
-    host: smtpHost, port: smtpPort, email: smtpEmail, password: smtpPassword, user_id: userId,
+    host: smtpHost, port: smtpPort, email: smtpEmail, password: smtpPassword,
   }), [smtpHost, smtpPort, smtpEmail, smtpPassword, userId])
 
   const composeCfg: BulkComposePayload = useMemo(() => ({
@@ -86,7 +86,7 @@ export function BulkEmailerView() {
 
   // Load saved SMTP settings on mount
   useEffect(() => {
-    fetchSMTPSettings(userId)
+    fetchSMTPSettings()
       .then(cfg => {
         if (cfg.configured) {
           setSmtpHost(cfg.smtp_host || '')

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { $conversations, $activeConversationId, selectConversation, startNewConversation, handleDeleteConversation } from '../store/chat'
 import { $approvals } from '../store/approvals'
-import { $userId } from '../store/auth'
+
 import { $activeView, $sidebarOpen, openSettings } from '../store/layout'
 import { cn } from '../lib/utils'
 
@@ -33,7 +33,6 @@ export function ChatSidebar() {
   const conversations = useStore($conversations)
   const activeConvId = useStore($activeConversationId)
   const approvals = useStore($approvals)
-  const userId = useStore($userId)
   const sidebarOpen = useStore($sidebarOpen)
 
   const pendingApprovalsCount = approvals.length
@@ -70,7 +69,7 @@ export function ChatSidebar() {
       {/* Action Button */}
       <div className="p-3">
         <button
-          onClick={() => startNewConversation(userId)}
+          onClick={() => startNewConversation()}
           className="flex w-full items-center justify-center gap-2 rounded-sm bg-primary py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:brightness-110 active:scale-95 transition-all"
         >
           <Plus className="size-4" />

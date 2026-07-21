@@ -22,9 +22,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from app.auth.jwt_auth import get_current_user
 
 from app.tools.bulk_send_service import (
     BulkSendRequest,
@@ -75,7 +76,7 @@ class HistoryEntry(BaseModel):
 # ─── SMTP Test ────────────────────────────────────────────────────────────────
 
 @router.post("/smtp-test")
-async def smtp_test(cfg: SMTPConfig):
+async def smtp_test(cfg: SMTPConfig, current_user: dict = Depends(get_current_user)):
     """Test SMTP credentials without sending."""
     result = await asyncio.get_event_loop().run_in_executor(
         None, test_smtp_connection, cfg
@@ -86,7 +87,7 @@ async def smtp_test(cfg: SMTPConfig):
 # ─── CSV Upload ───────────────────────────────────────────────────────────────
 
 @router.post("/upload-csv", response_model=ParsedCSVResponse)
-async def upload_csv(file: UploadFile = File(...)):
+async def upload_csv(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     """Parse uploaded CSV and return contacts + column headers."""
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are accepted.")
@@ -118,7 +119,7 @@ async def upload_csv(file: UploadFile = File(...)):
 # ─── Start Campaign ──────────────────────────────────────────────────────────
 
 @router.post("/send", response_model=CampaignStartResponse)
-async def start_send(request: BulkSendRequest):
+async def start_send(request: BulkSendRequest, current_user: dict = Depends(get_current_user)):
     """Start a bulk email campaign. Returns job_id for progress streaming."""
     if not request.contacts:
         raise HTTPException(status_code=400, detail="No contacts provided.")
@@ -144,7 +145,7 @@ async def start_send(request: BulkSendRequest):
 # ─── SSE Progress Stream ─────────────────────────────────────────────────────
 
 @router.get("/stream/{job_id}")
-async def stream_progress(job_id: str):
+async def stream_progress(job_id: str, current_user: dict = Depends(get_current_user)):
     """Server-Sent Events stream of campaign progress."""
     job = _jobs.get(job_id)
     if not job:
@@ -190,7 +191,7 @@ async def stream_progress(job_id: str):
 # ─── Stop Campaign ───────────────────────────────────────────────────────────
 
 @router.post("/stop/{job_id}")
-async def stop_send(job_id: str):
+async def stop_send(job_id: str, current_user: dict = Depends(get_current_user)):
     job = _jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
@@ -202,7 +203,7 @@ async def stop_send(job_id: str):
 # ─── Send History ─────────────────────────────────────────────────────────────
 
 @router.get("/history", response_model=List[HistoryEntry])
-async def get_history():
+async def get_history(current_user: dict = Depends(get_current_user)):
     """Return in-memory campaign history."""
     entries = []
     for jid, job in _jobs.items():
@@ -222,7 +223,7 @@ async def get_history():
 # ─── Test Email ───────────────────────────────────────────────────────────────
 
 @router.post("/test-email")
-async def test_email(req: TestEmailRequest):
+async def test_email(req: TestEmailRequest, current_user: dict = Depends(get_current_user)):
     """Send a single test email."""
     result = await asyncio.get_event_loop().run_in_executor(
         None, send_test_email, req.smtp, req.compose, req.to

@@ -5,6 +5,7 @@
 
 import { atom } from 'nanostores'
 import { fetchApprovals, approveAction, rejectAction, type Approval } from '../lib/api'
+import { getAuthToken } from './auth'
 
 export const $approvals = atom<Approval[]>([])
 export const $approvalsLoading = atom<boolean>(false)
@@ -18,11 +19,11 @@ function mergeApprovals(existing: Approval[], incoming: Approval[]): Approval[] 
   return Array.from(byId.values())
 }
 
-export async function loadPendingApprovals(userId: string) {
+export async function loadPendingApprovals() {
   $approvalsLoading.set(true)
   $approvalsError.set(null)
   try {
-    const list = await fetchApprovals(userId, 'pending')
+    const list = await fetchApprovals('pending')
     $approvals.set(mergeApprovals([], list))
   } catch (err: any) {
     $approvalsError.set(err.message || 'Failed to fetch approvals')
@@ -63,13 +64,14 @@ export async function handleReject(approvalId: string) {
 
 let ws: WebSocket | null = null
 
-export function connectApprovalsWebSocket(userId: string) {
+export function connectApprovalsWebSocket() {
   if (ws) {
     ws.close()
   }
 
   const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-  const wsUrl = API_BASE_URL.replace(/^http/, 'ws') + `/ws/${encodeURIComponent(userId)}`
+  const token = getAuthToken()
+  const wsUrl = API_BASE_URL.replace(/^http/, 'ws') + `/ws?token=${encodeURIComponent(token)}`
 
   ws = new WebSocket(wsUrl)
 
@@ -93,7 +95,7 @@ export function connectApprovalsWebSocket(userId: string) {
 
   ws.onclose = () => {
     // Reconnect after 3 seconds
-    setTimeout(() => connectApprovalsWebSocket(userId), 3000)
+    setTimeout(() => connectApprovalsWebSocket(), 3000)
   }
 
   ws.onerror = (err) => {

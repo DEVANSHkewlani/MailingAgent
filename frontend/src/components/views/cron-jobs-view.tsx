@@ -87,7 +87,7 @@ export function CronJobsView() {
     setLoading(true)
     setError(null)
     try {
-      setJobs(await fetchCronJobs(userId))
+      setJobs(await fetchCronJobs())
     } catch (err: any) {
       setError(err.message || 'Failed to load cron jobs')
     } finally {
@@ -104,7 +104,6 @@ export function CronJobsView() {
     setError(null)
     try {
       const created = await createCronJob({
-        user_id: userId,
         name: name.trim() || undefined,
         prompt: prompt.trim(),
         schedule_type: schedule === 'daily' ? 'daily' : 'interval_minutes',

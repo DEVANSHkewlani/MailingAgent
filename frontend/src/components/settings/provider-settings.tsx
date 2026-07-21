@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useStore } from '@nanostores/react'
+
 import { Link as LinkIcon, Mail, Check, Key, Server } from 'lucide-react'
 import {
   getGoogleLoginUrl,
@@ -16,12 +16,12 @@ import {
   saveGroqSettings,
   type GoogleProfile
 } from '../../lib/api'
-import { $userId } from '../../store/auth'
+
 import { Button } from '../ui/button'
 import { ListRow, SectionHeading } from './primitives'
 
 export function ProviderSettings() {
-  const userId = useStore($userId)
+
   const [googleConnected, setGoogleConnected] = useState(false)
   const [googleProfile, setGoogleProfile] = useState<GoogleProfile | null>(null)
 
@@ -40,10 +40,10 @@ export function ProviderSettings() {
 
   // Check backend to see if user has valid credentials in database
   useEffect(() => {
-    checkGoogleAuthStatus(userId)
+    checkGoogleAuthStatus()
       .then(connected => setGoogleConnected(connected))
       .catch(err => console.error("ProviderSettings: Google status check failed", err))
-    fetchGoogleProfile(userId)
+    fetchGoogleProfile()
       .then(profile => {
         setGoogleProfile(profile)
         setGoogleConnected(profile.connected)
@@ -51,7 +51,7 @@ export function ProviderSettings() {
       .catch(err => console.error("ProviderSettings: Google profile fetch failed", err))
 
     // Load SMTP Settings from DB
-    fetchSMTPSettings(userId)
+    fetchSMTPSettings()
       .then(cfg => {
         setSmtpHost(cfg.smtp_host || '')
         setSmtpPort(cfg.smtp_port || 587)
@@ -62,7 +62,7 @@ export function ProviderSettings() {
       .catch(err => console.error("ProviderSettings: SMTP settings load failed", err))
 
     // Load Groq Settings from DB
-    fetchGroqSettings(userId)
+    fetchGroqSettings()
       .then(cfg => {
         if (cfg.groq_api_key) {
           setGroqKey(cfg.groq_api_key)
@@ -70,16 +70,16 @@ export function ProviderSettings() {
         }
       })
       .catch(err => console.error("ProviderSettings: Groq settings load failed", err))
-  }, [userId])
+  }, [])
 
   const handleConnectGoogle = () => {
     localStorage.setItem('open_settings_on_load', 'providers')
-    window.location.href = getGoogleLoginUrl(userId)
+    window.location.href = getGoogleLoginUrl()
   }
 
   const handleSaveKeys = () => {
     localStorage.setItem('mailing_agent_groq_key', groqKey)
-    saveGroqSettings(userId, groqKey)
+    saveGroqSettings(groqKey)
       .then(() => {
         setIsSaved(true)
         setTimeout(() => setIsSaved(false), 2000)
@@ -93,7 +93,6 @@ export function ProviderSettings() {
 
   const handleSaveSMTPSettings = () => {
     saveSMTPSettings({
-      user_id: userId,
       smtp_host: smtpHost,
       smtp_port: smtpPort,
       smtp_username: smtpUsername,

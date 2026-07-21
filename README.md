@@ -217,7 +217,10 @@ Create a `.env` file under the `backend` folder. Match the key-value specificati
 | `GOOGLE_CLIENT_ID` | `10577435...apps.googleusercontent.com` | Google APIs OAuth credential client identifier |
 | `GOOGLE_CLIENT_SECRET` | `GOCSPX-...` | Secret string validation corresponding to Client ID |
 | `GOOGLE_REDIRECT_URI` | `http://localhost:8000/auth/callback` | OAuth redirect endpoint matching the backend routing |
-| `TOKEN_ENCRYPTION_KEY` | `aBNJhf2lPATLJqlm7iy-_uwWcVEeWycri9Y8qYhVav8=` | 32-byte Fernet key for encrypting provider keys |
+| `JWT_SECRET` | Run: `python3 -c "import secrets; print(secrets.token_urlsafe(48))"` | HS256 signing key for user session JWTs |
+| `OAUTH_ENCRYPTION_KEY` | Run: `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` | Fernet key for encrypting OAuth tokens at rest |
+| `TOKEN_SIGNING_KEY` | Run: `python3 -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"` | HMAC key for approval confirmation tokens |
+| `ALLOWED_ORIGINS` | `http://localhost:5173,app://.` | Comma-separated list of allowed CORS origins |
 
 ---
 
